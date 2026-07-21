@@ -1,0 +1,130 @@
+.sticky-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 2.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  gap: 2rem;
+}
+
+.header-stats {
+  display: flex;
+  gap: 1rem;
+  flex: 1;
+  overflow-x: auto;
+  padding-bottom: 0.5rem; /* for scrollbar space if needed */
+}
+
+/* Hide scrollbar for header stats */
+.header-stats::-webkit-scrollbar {
+  display: none;
+}
+.header-stats {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.stat-box {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+  min-width: max-content;
+}
+
+.stat-box.clickable {
+  cursor: pointer;
+}
+
+.stat-box.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--text-muted);
+}
+
+.text-accent { color: var(--accent-primary); }
+.text-success { color: var(--success); }
+.text-warning { color: var(--warning); }
+.text-danger { color: var(--danger); }
+.text-primary { color: var(--info); } /* Reusing info color for total bookings */
+.text-vip { color: var(--vip); }
+
+.stat-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin-bottom: 0.125rem;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.header-action {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.call-now-box {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  background: var(--danger-bg);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 0.5rem 0.5rem 0.5rem 1rem;
+  border-radius: var(--radius-full);
+}
+
+.call-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.call-badge {
+  background: var(--danger);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-full);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.call-name {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--danger);
+}
+
+.btn-sm {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+}
+
+.all-caught-up {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--success);
+  padding: 0.5rem 1.25rem;
+  background: var(--success-bg);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: var(--radius-full);
+}
