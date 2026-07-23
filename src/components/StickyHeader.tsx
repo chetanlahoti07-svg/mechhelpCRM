@@ -5,9 +5,9 @@ import { useTheme } from '../store/ThemeContext';
 import { CallOutcomeModal } from './CallOutcomeModal';
 import { AddLeadModal } from './AddLeadModal';
 import type { Lead } from '../types';
-import { Phone, CheckCircle, BellRing, Calendar, Sun, Moon, Star, List, RotateCcw } from 'lucide-react';
+import { Phone, CheckCircle, BellRing, Calendar, Sun, Moon, List, RotateCcw } from 'lucide-react';
 import './StickyHeader.css';
-import { isToday, isTomorrow, isBefore, startOfToday } from 'date-fns';
+import { isToday, isTomorrow, startOfToday } from 'date-fns';
 
 export const StickyHeader: React.FC = () => {
   const { leads, isLoading } = useLeadContext();
@@ -31,7 +31,6 @@ export const StickyHeader: React.FC = () => {
   const totalBookings = bookedLeads.length;
   
   const garagesToNotify = bookedLeads.filter(l => isTomorrow(new Date(l.bookingDateTime!)) && !l.garageNotified).length;
-  const vipCustomers = leads.filter(l => l.isVip).length;
   const rescheduledCustomers = leads.filter(l => (l.bookingHistory?.length || 0) > 0).length;
   const rescheduledToday = leads.filter(l => 
     l.bookingHistory?.some(h => isToday(new Date(h.rescheduledOn)))

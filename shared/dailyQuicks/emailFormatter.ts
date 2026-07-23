@@ -14,10 +14,10 @@ export function formatDailyQuicksEmailSubject(summary: DailyQuicksSummary): stri
 
 export function formatDailyQuicksEmailBody(summary: DailyQuicksSummary): string {
   const { stats, sections } = summary;
-  const divider = '='.repeat(50);
+  const divider = '-'.repeat(50);
 
   return [
-    'Good Morning,',
+    'Good Morning!',
     '',
     'Here is your Daily Quicks summary.',
     '',
@@ -25,14 +25,14 @@ export function formatDailyQuicksEmailBody(summary: DailyQuicksSummary): string 
     '',
     '📊 SUMMARY',
     '',
-    `👥 Total Leads: ${stats.totalLeads}`,
-    `📞 Calls Due Today: ${stats.callsDueToday}`,
-    `🚗 Total Bookings: ${stats.totalBookings}`,
-    `📅 Today's Bookings: ${stats.todaysBookings}`,
-    `📆 Tomorrow's Bookings: ${stats.tomorrowsBookings}`,
-    `🔄 Rescheduled Bookings: ${stats.rescheduledBookings}`,
-    `🔔 Garage Notifications: ${stats.garageNotifications}`,
-    `⭐ VIP Customers: ${stats.vipCustomers}`,
+    `• Total Leads: ${stats.totalLeads}`,
+    `• Calls Due Today: ${stats.callsDueToday}`,
+    `• Total Bookings: ${stats.totalBookings}`,
+    `• Today's Bookings: ${stats.todaysBookings}`,
+    `• Tomorrow's Bookings: ${stats.tomorrowsBookings}`,
+    `• Rescheduled Bookings: ${stats.rescheduledBookings}`,
+    `• Garage Notifications: ${stats.garageNotifications}`,
+    `• VIP Customers: ${stats.vipCustomers}`,
     '',
     divider,
     '',

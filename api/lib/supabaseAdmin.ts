@@ -45,6 +45,18 @@ export async function fetchLeadsForSummary(): Promise<DailyQuicksLeadInput[]> {
   }));
 }
 
+export async function getDailySummaryByDate(date: string) {
+  const supabase = createSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('daily_summaries')
+    .select('*')
+    .eq('date', date)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
 export async function upsertDailySummary(
   summary: import('../../shared/dailyQuicks/types').DailyQuicksSummary
 ) {

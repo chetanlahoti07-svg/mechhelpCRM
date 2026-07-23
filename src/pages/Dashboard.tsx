@@ -3,7 +3,7 @@ import { useLeadContext } from '../store/LeadContext';
 import { isToday, isBefore, startOfToday, differenceInDays } from 'date-fns';
 import { AddLeadModal } from '../components/AddLeadModal';
 import { CallOutcomeModal } from '../components/CallOutcomeModal';
-import { Plus, Phone, Edit } from 'lucide-react';
+import { Plus, Phone, Edit, Crown, Car, CheckCircle } from 'lucide-react';
 import type { Lead } from '../types';
 import './Dashboard.css';
 
@@ -97,25 +97,36 @@ export const Dashboard: React.FC = () => {
           <div className="vip-cars-header">
             <h3>💎 VIP Cars</h3>
             <div className="vip-stats">
-              <div className="stat-badge">
-                <span className="stat-value">{vipCars.length}</span>
-                <span className="stat-label">Total</span>
+              <div className="stat-box">
+                <Crown size={18} className="text-vip" />
+                <div className="stat-content">
+                  <span className="stat-label">Total</span>
+                  <span className="stat-value">{vipCars.length}</span>
+                </div>
               </div>
-              <div className="stat-badge">
-                <span className="stat-value">{vipActive.length}</span>
-                <span className="stat-label">Active</span>
+              <div className="stat-box">
+                <Car size={18} className="text-accent" />
+                <div className="stat-content">
+                  <span className="stat-label">Active</span>
+                  <span className="stat-value">{vipActive.length}</span>
+                </div>
               </div>
-              <div className="stat-badge">
-                <span className="stat-value">{vipBooked.length}</span>
-                <span className="stat-label">Booked</span>
+              <div className="stat-box">
+                <CheckCircle size={18} className="text-success" />
+                <div className="stat-content">
+                  <span className="stat-label">Booked</span>
+                  <span className="stat-value">{vipBooked.length}</span>
+                </div>
               </div>
             </div>
           </div>
           <div className="vip-cars-grid">
             {topVipCars.map(car => (
               <div key={car.id} className="vip-car-item">
-                <div className="vip-car-name">{car.customerName}</div>
-                <div className="vip-car-model">{car.carBrand} {car.carModel}</div>
+                <div className="vip-car-info">
+                  <div className="vip-car-name">{car.customerName}</div>
+                  <div className="vip-car-model">{car.carBrand} {car.carModel}</div>
+                </div>
                 <div className="vip-car-stage">{car.leadType}</div>
               </div>
             ))}
