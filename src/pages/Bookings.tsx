@@ -2,13 +2,13 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLeadContext } from '../store/LeadContext';
 import { isToday, isTomorrow } from 'date-fns';
-import { Search, ChevronLeft, ChevronRight, CalendarClock, History } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, CalendarClock, History, Trash2, AlertCircle } from 'lucide-react';
 import { RescheduleModal } from '../components/RescheduleModal';
 import { TimelineModal } from '../components/TimelineModal';
 import type { Lead } from '../types';
 
 export const Bookings: React.FC = () => {
-  const { leads, updateLead } = useLeadContext();
+  const { leads, updateLead, deleteLead } = useLeadContext();
   const [searchParams] = useSearchParams();
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -16,9 +16,11 @@ export const Bookings: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Modals state
+  // Modals & Delete state
   const [rescheduleLead, setRescheduleLead] = useState<Lead | null>(null);
   const [timelineLead, setTimelineLead] = useState<Lead | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     const urlFilter = searchParams.get('filter');
@@ -79,6 +81,23 @@ export const Bookings: React.FC = () => {
     alert('Booking rescheduled successfully!');
   };
 
+  const handleDelete = async (leadId: string) => {
+    if (!window.confirm('Delete this booking? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setDeleteError(null);
+      setDeletingId(leadId);
+      await deleteLead(leadId);
+    } catch (err: any) {
+      console.error('Error deleting booking:', err);
+      setDeleteError(err?.message || 'Failed to delete booking. Please try again.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="bookings animate-fade-in">
       <div className="dashboard-header" style={{ marginBottom: '2rem' }}>
@@ -88,6 +107,16 @@ export const Bookings: React.FC = () => {
         </div>
       </div>
       
+      {deleteError && (
+        <div className="surface-panel" style={{ padding: '1rem', marginBottom: '1.5rem', borderLeft: '4px solid var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--danger)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <AlertCircle size={18} />
+            <span>{deleteError}</span>
+          </div>
+          <button className="btn btn-secondary btn-sm" onClick={() => setDeleteError(null)}>Dismiss</button>
+        </div>
+      )}
+
       <div className="filters surface-panel" style={{ padding: '1.5rem', marginBottom: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: '1rem', flex: 1, minWidth: '300px' }}>
           <div style={{ position: 'relative', flex: 1, maxWidth: '400px' }}>
@@ -201,18 +230,29 @@ export const Bookings: React.FC = () => {
                     </td>
                     <td>
                       <div className="flex flex-col gap-2">
-                        {isConfirmed && (
+                        <div className="flex items-center gap-2">
+                          {isConfirmed && (
+                            <button 
+                              className="btn btn-secondary btn-sm flex items-center justify-center gap-1"
+                              onClick={() => setRescheduleLead(lead)}
+                              disabled={deletingId === lead.id}
+                            >
+                              <CalendarClock size={14} /> Reschedule
+                            </button>
+                          )}
                           <button 
-                            className="btn btn-secondary btn-sm flex items-center justify-center gap-1"
-                            onClick={() => setRescheduleLead(lead)}
+                            className="btn btn-outline-danger btn-sm flex items-center justify-center gap-1"
+                            onClick={() => handleDelete(lead.id)}
+                            disabled={deletingId === lead.id}
                           >
-                            <CalendarClock size={14} /> Reschedule
+                            <Trash2 size={14} /> {deletingId === lead.id ? 'Deleting...' : 'Delete'}
                           </button>
-                        )}
+                        </div>
                         {!lead.garageNotified && isConfirmed && (
                           <button 
                             className="btn btn-primary btn-sm" 
                             onClick={() => handleMarkNotified(lead.id)}
+                            disabled={deletingId === lead.id}
                           >
                             Mark Notified
                           </button>
