@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLeadContext } from '../store/LeadContext';
 import { AddLeadModal } from '../components/AddLeadModal';
-import { Edit, Trash2, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Edit, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
 import { isBefore, startOfToday } from 'date-fns';
 import type { Lead } from '../types';
 
@@ -84,11 +85,7 @@ export const AllLeads: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this lead? This cannot be undone.')) {
-      deleteLead(id);
-    }
-  };
+
 
   return (
     <div className="all-leads animate-fade-in">
@@ -174,9 +171,10 @@ export const AllLeads: React.FC = () => {
                     <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(lead)}>
                       <Edit size={14} /> Edit
                     </button>
-                    <button className="btn btn-secondary btn-sm" style={{ color: 'var(--danger)', borderColor: 'var(--danger-bg)' }} onClick={() => handleDelete(lead.id)}>
-                      <Trash2 size={14} /> Delete
-                    </button>
+                    <DeleteConfirmAction
+                      size="sm"
+                      onConfirm={() => deleteLead(lead.id)}
+                    />
                   </div>
                 </td>
               </tr>

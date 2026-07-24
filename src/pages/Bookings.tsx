@@ -2,9 +2,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLeadContext } from '../store/LeadContext';
 import { isToday, isTomorrow } from 'date-fns';
-import { Search, ChevronLeft, ChevronRight, CalendarClock, History, Trash2, AlertCircle } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, CalendarClock, History, AlertCircle } from 'lucide-react';
 import { RescheduleModal } from '../components/RescheduleModal';
 import { TimelineModal } from '../components/TimelineModal';
+import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
 import type { Lead } from '../types';
 
 const parseBookingDate = (dStr?: string): Date => {
@@ -26,6 +27,7 @@ export const Bookings: React.FC = () => {
   const [timelineLead, setTimelineLead] = useState<Lead | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     const urlFilter = searchParams.get('filter');
@@ -87,14 +89,11 @@ export const Bookings: React.FC = () => {
   };
 
   const handleDelete = async (leadId: string) => {
-    if (!window.confirm('Delete this booking? This cannot be undone.')) {
-      return;
-    }
-
     try {
       setDeleteError(null);
       setDeletingId(leadId);
       await deleteLead(leadId);
+      setDeleteConfirmId(null);
     } catch (err: any) {
       console.error('Error deleting booking:', err);
       setDeleteError(err?.message || 'Failed to delete booking. Please try again.');
@@ -242,13 +241,11 @@ export const Bookings: React.FC = () => {
                               <CalendarClock size={14} /> Reschedule
                             </button>
                           )}
-                          <button 
-                            className="btn btn-outline-danger btn-sm flex items-center justify-center gap-1"
-                            onClick={() => handleDelete(lead.id)}
-                            disabled={deletingId === lead.id}
-                          >
-                            <Trash2 size={14} /> {deletingId === lead.id ? 'Deleting...' : 'Delete'}
-                          </button>
+                          <DeleteConfirmAction
+                            size="sm"
+                            isDeleting={deletingId === lead.id}
+                            onConfirm={() => handleDelete(lead.id)}
+                          />
                         </div>
                         {!lead.garageNotified && isConfirmed && (
                           <button 

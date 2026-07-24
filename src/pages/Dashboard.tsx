@@ -3,14 +3,14 @@ import { useLeadContext } from '../store/LeadContext';
 import { isToday, isBefore, startOfToday, differenceInDays } from 'date-fns';
 import { AddLeadModal } from '../components/AddLeadModal';
 import { CallOutcomeModal } from '../components/CallOutcomeModal';
-import { Plus, Phone, Edit, Crown, Car, CheckCircle, Trash2 } from 'lucide-react';
+import { Plus, Phone, Edit, Crown, Car, CheckCircle } from 'lucide-react';
+import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
 import type { Lead } from '../types';
 import './Dashboard.css';
 
 export const Dashboard: React.FC = () => {
   const { leads, deleteLead } = useLeadContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deleteErrorId, setDeleteErrorId] = useState<string | null>(null);
 
   const today = startOfToday();
@@ -48,7 +48,6 @@ export const Dashboard: React.FC = () => {
     try {
       setDeleteErrorId(null);
       await deleteLead(leadId);
-      setDeleteConfirmId(null);
     } catch {
       setDeleteErrorId(leadId);
     }
@@ -176,29 +175,16 @@ export const Dashboard: React.FC = () => {
                     </div>
                   </div>
                   <div className="queue-card-actions">
-                    {deleteConfirmId === lead.id ? (
-                      <>
-                        <span style={{ color: 'var(--danger)', fontWeight: 600, fontSize: '0.875rem', alignSelf: 'center', marginRight: '0.5rem' }}>Are you sure?</span>
-                        <button className="btn btn-secondary" onClick={() => setDeleteConfirmId(null)}>
-                          Cancel
-                        </button>
-                        <button className="btn btn-danger" onClick={() => handleDelete(lead.id)}>
-                          Confirm
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button className="btn btn-outline-danger" onClick={() => setDeleteConfirmId(lead.id)}>
-                          <Trash2 size={16} /> Delete
-                        </button>
-                        <button className="btn btn-secondary" onClick={() => handleEdit(lead)}>
-                          <Edit size={16} /> Edit
-                        </button>
-                        <button className="btn btn-primary" onClick={() => handleMarkContacted(lead)}>
-                          <Phone size={16} /> Mark Contacted
-                        </button>
-                      </>
-                    )}
+                    <DeleteConfirmAction
+                      size="md"
+                      onConfirm={() => handleDelete(lead.id)}
+                    />
+                    <button className="btn btn-secondary" onClick={() => handleEdit(lead)}>
+                      <Edit size={16} /> Edit
+                    </button>
+                    <button className="btn btn-primary" onClick={() => handleMarkContacted(lead)}>
+                      <Phone size={16} /> Mark Contacted
+                    </button>
                     {deleteErrorId === lead.id && (
                       <span style={{ color: 'var(--danger)', fontSize: '0.75rem', position: 'absolute', marginTop: '3rem', marginLeft: '0.5rem' }}>Failed to delete.</span>
                     )}

@@ -3,14 +3,14 @@ import React, { useState } from 'react';
 import { useLeadContext } from '../store/LeadContext';
 import type { SujalCallListItem, SujalStatus } from '../types';
 import { AddLeadModal } from '../components/AddLeadModal';
-import { Plus, Phone, ClipboardEdit, X, Trash2 } from 'lucide-react';
+import { Plus, Phone, ClipboardEdit, X } from 'lucide-react';
+import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
 import './SujalList.css';
 
 export const SujalList: React.FC = () => {
   const { sujalList, addSujalItem, updateSujalItem, deleteSujalItem, isLoading } = useLeadContext();
   const [newTag, setNewTag] = useState('');
   const [newPriority, setNewPriority] = useState('Medium');
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deleteErrorId, setDeleteErrorId] = useState<string | null>(null);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -148,33 +148,20 @@ export const SujalList: React.FC = () => {
                 </td>
                 <td>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    {deleteConfirmId === item.id ? (
-                      <>
-                        <span style={{ color: 'var(--danger)', fontWeight: 600, fontSize: '0.75rem', marginRight: '0.5rem' }}>Are you sure?</span>
-                        <button className="btn btn-secondary btn-sm" onClick={() => setDeleteConfirmId(null)}>
-                          Cancel
-                        </button>
-                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(item.id)}>
-                          Confirm
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button className="btn btn-outline-danger btn-sm" onClick={() => setDeleteConfirmId(item.id)}>
-                          <Trash2 size={14} /> Delete
-                        </button>
-                        <a href={`tel:${item.salesIqTag}`} className="btn btn-secondary btn-sm" title="Call">
-                          <Phone size={14} /> Call
-                        </a>
-                        <button className="btn btn-primary btn-sm" onClick={() => handleOpenLogModal(item)}>
-                          <ClipboardEdit size={14} /> Log Call
-                        </button>
-                      </>
-                    )}
-                    {deleteErrorId === item.id && (
-                      <span style={{ color: 'var(--danger)', fontSize: '0.75rem', position: 'absolute', marginTop: '2.5rem' }}>Failed to delete.</span>
-                    )}
+                    <DeleteConfirmAction
+                      size="sm"
+                      onConfirm={() => handleDelete(item.id)}
+                    />
+                    <a href={`tel:${item.salesIqTag}`} className="btn btn-secondary btn-sm" title="Call">
+                      <Phone size={14} /> Call
+                    </a>
+                    <button className="btn btn-primary btn-sm" onClick={() => handleOpenLogModal(item)}>
+                      <ClipboardEdit size={14} /> Log Call
+                    </button>
                   </div>
+                  {deleteErrorId === item.id && (
+                    <span style={{ color: 'var(--danger)', fontSize: '0.75rem', position: 'absolute', marginTop: '2.5rem' }}>Failed to delete.</span>
+                  )}
                 </td>
               </tr>
             ))}
