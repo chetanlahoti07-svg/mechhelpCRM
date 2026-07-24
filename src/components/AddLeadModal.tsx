@@ -26,7 +26,8 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
   
   const [bookingType, setBookingType] = useState<BookingType | undefined>(initialData?.bookingType);
   const [garageAssigned, setGarageAssigned] = useState(initialData?.garageAssigned || '');
-  const [bookingDateTime, setBookingDateTime] = useState(initialData?.bookingDateTime || '');
+  const [bookingDateTime, setBookingDateTime] = useState(initialData?.bookingDateTime ? initialData.bookingDateTime.split('T')[0] : '');
+
   
   const [nextFollowUpDate, setNextFollowUpDate] = useState(
     initialData?.nextFollowUpDate || new Date().toISOString().split('T')[0]
@@ -93,7 +94,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
         setLeadType(initialData.leadType || 'Fresh Lead');
         setBookingType(initialData.bookingType);
         setGarageAssigned(initialData.garageAssigned || '');
-        setBookingDateTime(initialData.bookingDateTime || '');
+        setBookingDateTime(initialData.bookingDateTime ? initialData.bookingDateTime.split('T')[0] : '');
         setNextFollowUpDate(initialData.nextFollowUpDate || new Date().toISOString().split('T')[0]);
         setNotes(initialData.notes || '');
         setIsVip(initialData.isVip || false);
@@ -397,10 +398,10 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
                   </div>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Booking Date & Time</label>
+                  <label className="form-label">Booking Date</label>
                   <input 
                     id="field-bookingDateTime"
-                    type="datetime-local" 
+                    type="date" 
                     className={`form-input ${errors.bookingDateTime ? 'is-invalid' : ''}`} 
                     value={bookingDateTime} 
                     onChange={e => {

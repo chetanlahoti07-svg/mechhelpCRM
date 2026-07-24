@@ -25,12 +25,17 @@ export const StickyHeader: React.FC = () => {
     new Date(l.nextFollowUpDate) <= today
   ).length;
 
+  const parseBookingDate = (dStr?: string): Date => {
+    if (!dStr) return new Date(NaN);
+    return new Date(dStr.includes('T') ? dStr : `${dStr}T00:00:00`);
+  };
+
   const bookedLeads = leads.filter(l => l.leadType === 'Booked' && l.bookingDateTime);
-  const bookingsToday = bookedLeads.filter(l => isToday(new Date(l.bookingDateTime!))).length;
-  const bookingsTomorrow = bookedLeads.filter(l => isTomorrow(new Date(l.bookingDateTime!))).length;
+  const bookingsToday = bookedLeads.filter(l => isToday(parseBookingDate(l.bookingDateTime))).length;
+  const bookingsTomorrow = bookedLeads.filter(l => isTomorrow(parseBookingDate(l.bookingDateTime))).length;
   const totalBookings = bookedLeads.length;
   
-  const garagesToNotify = bookedLeads.filter(l => isTomorrow(new Date(l.bookingDateTime!)) && !l.garageNotified).length;
+  const garagesToNotify = bookedLeads.filter(l => isTomorrow(parseBookingDate(l.bookingDateTime)) && !l.garageNotified).length;
   const rescheduledCustomers = leads.filter(l => (l.bookingHistory?.length || 0) > 0).length;
   const rescheduledToday = leads.filter(l => 
     l.bookingHistory?.some(h => isToday(new Date(h.rescheduledOn)))

@@ -7,6 +7,11 @@ import { RescheduleModal } from '../components/RescheduleModal';
 import { TimelineModal } from '../components/TimelineModal';
 import type { Lead } from '../types';
 
+const parseBookingDate = (dStr?: string): Date => {
+  if (!dStr) return new Date(NaN);
+  return new Date(dStr.includes('T') ? dStr : `${dStr}T00:00:00`);
+};
+
 export const Bookings: React.FC = () => {
   const { leads, updateLead, deleteLead } = useLeadContext();
   const [searchParams] = useSearchParams();
@@ -35,11 +40,11 @@ export const Bookings: React.FC = () => {
 
     // Apply specific filter
     if (filter === 'today') {
-      data = data.filter(l => l.leadType === 'Booked' && isToday(new Date(l.bookingDateTime!)));
+      data = data.filter(l => l.leadType === 'Booked' && isToday(parseBookingDate(l.bookingDateTime)));
     } else if (filter === 'tomorrow') {
-      data = data.filter(l => l.leadType === 'Booked' && isTomorrow(new Date(l.bookingDateTime!)));
+      data = data.filter(l => l.leadType === 'Booked' && isTomorrow(parseBookingDate(l.bookingDateTime)));
     } else if (filter === 'unnotified') {
-      data = data.filter(l => l.leadType === 'Booked' && isTomorrow(new Date(l.bookingDateTime!)) && !l.garageNotified);
+      data = data.filter(l => l.leadType === 'Booked' && isTomorrow(parseBookingDate(l.bookingDateTime)) && !l.garageNotified);
     } else if (filter === 'rescheduled') {
       data = data.filter(l => (l.bookingHistory?.length || 0) > 0);
     } else if (filter === 'completed') {
@@ -63,8 +68,8 @@ export const Bookings: React.FC = () => {
       );
     }
 
-    // Sort by booking date time ascending
-    return data.sort((a, b) => new Date(a.bookingDateTime!).getTime() - new Date(b.bookingDateTime!).getTime());
+    // Sort by booking date ascending
+    return data.sort((a, b) => parseBookingDate(a.bookingDateTime).getTime() - parseBookingDate(b.bookingDateTime).getTime());
   }, [allBookings, filter, searchTerm]);
 
   // Pagination
@@ -190,10 +195,7 @@ export const Bookings: React.FC = () => {
                     </td>
                     <td>
                       <div className="text-sm font-medium">
-                        {new Date(lead.bookingDateTime!).toLocaleDateString('en-GB')}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {new Date(lead.bookingDateTime!).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        {parseBookingDate(lead.bookingDateTime).toLocaleDateString('en-GB')}
                       </div>
                     </td>
                     <td>

@@ -116,7 +116,7 @@ export const RescheduleModal: React.FC<RescheduleModalProps> = ({ isOpen, onClos
               <div style={{ gridColumn: 'span 2', marginTop: '0.5rem', padding: '0.5rem', background: 'var(--warning-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(245, 158, 11, 0.2)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Calendar size={14} style={{ color: 'var(--warning)' }} />
                 <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--warning)' }}>
-                  Current: {currentDate ? new Date(currentDate).toLocaleDateString('en-GB') : 'N/A'} at {currentTime}
+                  Current: {currentDate ? new Date(currentDate.includes('T') ? currentDate : `${currentDate}T00:00:00`).toLocaleDateString('en-GB') : 'N/A'}
                 </span>
               </div>
             </div>

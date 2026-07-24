@@ -1,6 +1,6 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import type { Lead } from '../types';
-import { X } from 'lucide-react';
 import { BookingTimeline } from './BookingTimeline';
 
 interface TimelineModalProps {
@@ -12,17 +12,27 @@ interface TimelineModalProps {
 export const TimelineModal: React.FC<TimelineModalProps> = ({ isOpen, onClose, lead }) => {
   if (!isOpen || !lead) return null;
 
-  return (
-    <div className="modal-overlay">
-      <div className="modal-content slide-in" style={{ maxWidth: '500px' }}>
+  return createPortal(
+    <div className="modal-overlay" onClick={onClose}>
+      <div 
+        className="modal-content surface-panel animate-fade-in" 
+        style={{ maxWidth: '550px' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h2>Booking Timeline</h2>
-          <button onClick={onClose} className="btn-icon"><X size={20} /></button>
+          <button className="btn-close" onClick={onClose}>&times;</button>
         </div>
-        <div className="modal-body max-h-[70vh] overflow-y-auto custom-scrollbar">
+        <div className="modal-body" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
           <BookingTimeline lead={lead} />
         </div>
+        <div className="modal-footer">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Close
+          </button>
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

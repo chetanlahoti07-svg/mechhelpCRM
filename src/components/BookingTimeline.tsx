@@ -77,7 +77,7 @@ export const BookingTimeline: React.FC<BookingTimelineProps> = ({ lead }) => {
             <CheckCircle size={14} className="text-primary mr-1" /> Current Booking
           </p>
           <p className="text-xs text-gray-300 mt-1">
-            {lead.bookingDateTime ? new Date(lead.bookingDateTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+            {lead.bookingDateTime ? new Date(lead.bookingDateTime.includes('T') ? lead.bookingDateTime : `${lead.bookingDateTime}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
           </p>
           <p className="text-xs text-gray-400 mt-1">Garage: {lead.garageAssigned || 'Not Assigned'}</p>
         </div>
