@@ -7,7 +7,7 @@ import { Plus, Phone, ClipboardEdit, X, Trash2 } from 'lucide-react';
 import './SujalList.css';
 
 export const SujalList: React.FC = () => {
-  const { sujalList, addSujalItem, updateSujalItem, deleteSujalItem } = useLeadContext();
+  const { sujalList, addSujalItem, updateSujalItem, deleteSujalItem, isLoading } = useLeadContext();
   const [newTag, setNewTag] = useState('');
   const [newPriority, setNewPriority] = useState('Medium');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -76,8 +76,19 @@ export const SujalList: React.FC = () => {
     <div className="sujal-list animate-fade-in">
       <div className="dashboard-header" style={{ marginBottom: '2rem' }}>
         <div>
-          <h1>Daily Call List</h1>
-          <p>Prioritized leads to contact today</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <h1 style={{ margin: 0 }}>Daily Call List</h1>
+            <div className="daily-call-stat-card">
+              <div className="stat-icon-box">
+                <Phone size={16} className="text-accent" />
+              </div>
+              <div className="stat-content">
+                <span className="stat-label">Calls in List</span>
+                <span className="stat-value">{isLoading ? '-' : `${activeItems.length} ${activeItems.length === 1 ? 'call' : 'calls'}`}</span>
+              </div>
+            </div>
+          </div>
+          <p style={{ marginTop: '0.25rem' }}>Prioritized leads to contact today</p>
         </div>
       </div>
 
