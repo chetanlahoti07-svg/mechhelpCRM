@@ -113,36 +113,8 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
     
     const newErrors: Record<string, string> = {};
 
-    if (!customerName.trim()) {
-      newErrors.customerName = "Customer Name is required";
-    }
-
-    if (!identifier.trim()) {
-      newErrors.identifier = leadSource === 'SalesIQ' ? "SalesIQ Tag is required" : "Last 4 Digits are required";
-    } else if (leadSource !== 'SalesIQ' && !/^\d{4}$/.test(identifier)) {
-      newErrors.identifier = "Exactly 4 digits are required";
-    }
-
-    if (!carBrand || (carBrand === 'custom_brand' && !customBrand.trim())) {
-      newErrors.carBrand = "Car Brand is required";
-    }
-    
-    if (carBrand && carBrand !== 'custom_brand' && !carModel) {
-      newErrors.carModel = "Car Model is required";
-    }
-
-    if ((carBrand === 'custom_brand' || carModel === 'custom_model') && !customModel.trim()) {
-      newErrors.carModel = "Car Model is required";
-    }
-
-    if (!nextFollowUpDate) {
-      newErrors.nextFollowUpDate = "Next Follow-up Date is required";
-    }
-
-    if (leadType === 'Booked') {
-      if (!bookingType) newErrors.bookingType = "Booking Type is required";
-      if (!garageAssigned) newErrors.garageAssigned = "Garage is required";
-      if (!bookingDateTime) newErrors.bookingDateTime = "Booking Date & Time is required";
+    if (leadSource === 'SalesIQ' && !identifier.trim()) {
+      newErrors.identifier = "SalesIQ Tag is required";
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -270,7 +242,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
 
             <div className="form-group">
               <label className="form-label">
-                {leadSource === 'SalesIQ' ? 'SalesIQ Tag (Required)' : 'Last 4 Digits of Phone (Required)'}
+                {leadSource === 'SalesIQ' ? 'SalesIQ Tag (Required)' : 'Last 4 Digits of Phone'}
               </label>
               <input 
                 id="field-identifier"
@@ -313,7 +285,6 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
                     placeholder="Enter custom brand..."
                     value={customBrand}
                     onChange={e => setCustomBrand(e.target.value)}
-                    required
                   />
                 )}
                 {errors.carBrand && <div className="invalid-feedback">{errors.carBrand}</div>}
@@ -347,7 +318,6 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
                     placeholder="Enter custom model..."
                     value={customModel}
                     onChange={e => setCustomModel(e.target.value)}
-                    required
                   />
                 )}
                 {errors.carModel && <div className="invalid-feedback">{errors.carModel}</div>}

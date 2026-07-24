@@ -3,12 +3,19 @@ import type { DailyQuicksLeadInput } from '../../shared/dailyQuicks/types';
 
 export function createSupabaseAdmin() {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.VITE_SUPABASE_ANON_KEY;
 
-  if (!url || !key) {
-    throw new Error('Supabase URL and key must be configured for Daily Quicks cron');
+  // FIX: Never fall back to the anon key for cron jobs — the service role key
+  // bypasses RLS and is required so fetchLeadsForSummary returns all rows.
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url) {
+    throw new Error('SUPABASE_URL (or VITE_SUPABASE_URL) must be configured for Daily Quicks cron');
+  }
+  if (!key) {
+    throw new Error(
+      'SUPABASE_SERVICE_ROLE_KEY must be configured for Daily Quicks cron. ' +
+      'The anon key is not safe to use here — it may return incomplete data due to RLS.'
+    );
   }
 
   return createClient(url, key);
@@ -66,7 +73,9 @@ export async function upsertDailySummary(
   const { data, error } = await supabase
     .from('daily_summaries')
     .upsert(
-      { date: summary.date, summary, generated_at: generatedAt },
+      // FIX: Always write email_sent: false on upsert so the cron can detect
+      // a record that was saved but whose email delivery previously failed.
+      { date: summary.date, summary, generated_at: generatedAt, email_sent: false },
       { onConflict: 'date' }
     )
     .select('*')
@@ -74,4 +83,15 @@ export async function upsertDailySummary(
 
   if (error) throw error;
   return data;
+}
+
+/** Called after a successful email send to mark the record complete. */
+export async function markEmailSent(date: string) {
+  const supabase = createSupabaseAdmin();
+  const { error } = await supabase
+    .from('daily_summaries')
+    .update({ email_sent: true })
+    .eq('date', date);
+
+  if (error) throw error;
 }

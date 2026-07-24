@@ -1,6 +1,10 @@
 import nodemailer from 'nodemailer';
 
-export async function sendDailyQuicksEmail(subject: string, body: string): Promise<void> {
+export async function sendDailyQuicksEmail(
+  subject: string,
+  text: string,
+  html?: string
+): Promise<void> {
   const host = process.env.EMAIL_HOST;
   const port = Number(process.env.EMAIL_PORT || 587);
   const user = process.env.EMAIL_USER;
@@ -25,6 +29,9 @@ export async function sendDailyQuicksEmail(subject: string, body: string): Promi
     from,
     to,
     subject,
-    text: body,
+    text,
+    // FIX: Include HTML version for modern mail clients.
+    // Falls back to plain text if html is not provided.
+    ...(html ? { html } : {}),
   });
 }
