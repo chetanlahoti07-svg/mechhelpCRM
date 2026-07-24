@@ -332,6 +332,22 @@ export const CallListService = {
     }
   },
   
+  async deleteItem(id: string): Promise<void> {
+    if (useSupabase) {
+      const { error } = await supabase
+        .from('call_list_items')
+        .delete()
+        .eq('id', id);
+        
+      if (error) throw error;
+    } else {
+      await delay();
+      const items = await this.getItems();
+      const filteredItems = items.filter(i => i.id !== id);
+      localStorage.setItem(CALL_LIST_KEY, JSON.stringify(filteredItems));
+    }
+  },
+
   async rolloverPendingItems(): Promise<void> {
     const today = new Date().toISOString().split('T')[0];
     const lastLogin = localStorage.getItem('lastLoginDate');

@@ -11,6 +11,7 @@ interface LeadContextType {
   deleteLead: (id: string) => Promise<void>;
   addSujalItem: (item: Omit<SujalCallListItem, 'id' | 'dateAdded'>) => Promise<void>;
   updateSujalItem: (item: SujalCallListItem) => Promise<void>;
+  deleteSujalItem: (id: string) => Promise<void>;
   isLoading: boolean;
   isMigrating: boolean;
 }
@@ -128,8 +129,18 @@ export const LeadProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const deleteSujalItem = async (id: string) => {
+    try {
+      await CallListService.deleteItem(id);
+      setSujalList(prev => prev.filter(i => i.id !== id));
+    } catch (error) {
+      console.error('Error deleting call list item:', error);
+      alert('Failed to delete call list item.');
+    }
+  };
+
   return (
-    <LeadContext.Provider value={{ leads, sujalList, addLead, updateLead, deleteLead, addSujalItem, updateSujalItem, isLoading, isMigrating }}>
+    <LeadContext.Provider value={{ leads, sujalList, addLead, updateLead, deleteLead, addSujalItem, updateSujalItem, deleteSujalItem, isLoading, isMigrating }}>
       {children}
     </LeadContext.Provider>
   );
