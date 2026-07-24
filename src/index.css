@@ -244,6 +244,16 @@ p {
   color: #ffffff;
 }
 
+.btn-outline-danger {
+  background-color: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.btn-outline-danger:hover {
+  background-color: var(--danger-bg);
+}
+
 /* Inputs & Forms */
 .form-group {
   display: flex;
