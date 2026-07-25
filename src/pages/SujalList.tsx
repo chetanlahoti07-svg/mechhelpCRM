@@ -24,7 +24,6 @@ export const SujalList: React.FC = () => {
     try {
       setDeleteErrorId(null);
       await deleteSujalItem(id);
-      setDeleteConfirmId(null);
     } catch {
       setDeleteErrorId(id);
     }

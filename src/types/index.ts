@@ -1,5 +1,5 @@
 export type LeadSource = 'SalesIQ' | 'Direct Call' | 'Referral';
-export type LeadType = 'Fresh Lead' | 'Call Not Received' | 'Details Shared' | 'Retarget' | 'Booked' | 'Completed' | 'Lost';
+export type LeadType = 'Fresh Lead' | 'Call Not Received' | 'Details Shared' | 'Retarget' | 'Booked' | 'Completed' | 'Lost' | 'Redirected' | 'Rescheduled';
 export type BookingType = 'Pickup' | 'Garage Visit';
 export type Priority = 'High' | 'Medium' | 'Low';
 

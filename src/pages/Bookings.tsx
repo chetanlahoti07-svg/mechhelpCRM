@@ -6,7 +6,8 @@ import { Search, ChevronLeft, ChevronRight, CalendarClock, History, AlertCircle 
 import { RescheduleModal } from '../components/RescheduleModal';
 import { TimelineModal } from '../components/TimelineModal';
 import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
-import type { Lead } from '../types';
+import { BookingStatusDropdown } from '../components/BookingStatusDropdown';
+import type { Lead, LeadType } from '../types';
 
 const parseBookingDate = (dStr?: string): Date => {
   if (!dStr) return new Date(NaN);
@@ -27,7 +28,6 @@ export const Bookings: React.FC = () => {
   const [timelineLead, setTimelineLead] = useState<Lead | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     const urlFilter = searchParams.get('filter');
@@ -78,6 +78,13 @@ export const Bookings: React.FC = () => {
   const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
   const currentData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+  const handleStatusChange = async (leadId: string, newStatus: LeadType) => {
+    const lead = leads.find(l => l.id === leadId);
+    if (lead) {
+      await updateLead({ ...lead, leadType: newStatus });
+    }
+  };
+
   const handleMarkNotified = (leadId: string) => {
     const lead = leads.find(l => l.id === leadId);
     if (lead) updateLead({ ...lead, garageNotified: true });
@@ -93,7 +100,6 @@ export const Bookings: React.FC = () => {
       setDeleteError(null);
       setDeletingId(leadId);
       await deleteLead(leadId);
-      setDeleteConfirmId(null);
     } catch (err: any) {
       console.error('Error deleting booking:', err);
       setDeleteError(err?.message || 'Failed to delete booking. Please try again.');
@@ -215,13 +221,12 @@ export const Bookings: React.FC = () => {
                       )}
                     </td>
                     <td>
-                      {lead.leadType === 'Booked' ? (
-                        <span className="badge badge-blue mb-1">Confirmed</span>
-                      ) : lead.leadType === 'Completed' ? (
-                        <span className="badge badge-green mb-1">Completed</span>
-                      ) : (
-                        <span className="badge badge-red mb-1">Cancelled</span>
-                      )}
+                      <BookingStatusDropdown
+                        leadId={lead.id}
+                        currentStatus={lead.leadType}
+                        onStatusChange={handleStatusChange}
+                        disabled={deletingId === lead.id}
+                      />
                       
                       {!lead.garageNotified && isConfirmed && (
                         <div className="mt-1">
