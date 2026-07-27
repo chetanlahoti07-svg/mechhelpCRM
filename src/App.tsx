@@ -9,6 +9,7 @@ import { SujalList } from './pages/SujalList';
 import { Kanban } from './pages/Kanban';
 import { AllLeads } from './pages/AllLeads';
 import { Bookings } from './pages/Bookings';
+import { BookingCalendar } from './pages/BookingCalendar';
 import { VipCustomers } from './pages/VipCustomers';
 import { WhatsappBroadcast } from './pages/WhatsappBroadcast';
 import { Reports } from './pages/Reports';
@@ -26,6 +27,7 @@ function App() {
             <Route path="sujal" element={<SujalList />} />
             <Route path="leads" element={<AllLeads />} />
             <Route path="bookings" element={<Bookings />} />
+            <Route path="bookings/calendar" element={<BookingCalendar />} />
             <Route path="vip" element={<VipCustomers />} />
             <Route path="whatsapp" element={<WhatsappBroadcast />} />
             <Route path="reports" element={<Reports />} />

@@ -5,7 +5,8 @@ import {
   Sun,
   KanbanSquare, 
   Users, 
-  CalendarDays, 
+  CalendarDays,
+  Calendar,
   Star, 
   MessageCircle, 
   PhoneCall, 
@@ -25,6 +26,7 @@ const navItems = [
   { path: '/whatsapp', label: 'WhatsApp Broadcast', icon: MessageCircle },
   { path: '/sujal', label: 'Daily Call List', icon: PhoneCall },
   { path: '/bookings?filter=rescheduled', label: 'Rescheduled Bookings', icon: RotateCcw },
+  { path: '/bookings/calendar', label: 'Booking Calendar', icon: Calendar },
   { path: '/reports', label: 'Reports', icon: BarChart3 },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];

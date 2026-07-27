@@ -1,0 +1,269 @@
+.booking-calendar-page {
+  padding: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.calendar-title-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.calendar-title-group h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.month-navigator {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.month-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  min-width: 180px;
+  text-align: center;
+  color: var(--text-primary);
+}
+
+.calendar-grid-container {
+  overflow-x: auto;
+  border-radius: var(--radius-lg);
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-light);
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.weekday-cell {
+  padding: 0.75rem 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.calendar-days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--border-light);
+}
+
+.calendar-day-cell {
+  background: var(--bg-secondary);
+  min-height: 110px;
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  transition: background-color var(--transition-fast), transform var(--transition-fast);
+  cursor: pointer;
+  user-select: none;
+}
+
+.calendar-day-cell:hover {
+  background: var(--bg-tertiary);
+}
+
+.calendar-day-cell.other-month {
+  opacity: 0.45;
+  background: var(--bg-primary);
+}
+
+.calendar-day-cell.is-today {
+  box-shadow: inset 0 0 0 2px var(--accent-primary);
+  background: var(--bg-secondary);
+}
+
+.calendar-day-cell.has-bookings {
+  cursor: pointer;
+}
+
+.day-cell-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.day-number {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+}
+
+.calendar-day-cell.is-today .day-number {
+  background: var(--accent-primary);
+  color: var(--accent-text);
+}
+
+.booking-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--accent-primary);
+  color: var(--accent-text);
+  box-shadow: var(--shadow-sm);
+}
+
+.day-bookings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  overflow: hidden;
+}
+
+.day-booking-chip {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  border-left: 3px solid var(--accent-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+}
+
+.day-booking-chip.status-booked {
+  border-left-color: var(--info);
+  background: var(--info-bg);
+}
+
+.day-booking-chip.status-completed {
+  border-left-color: var(--success);
+  background: var(--success-bg);
+}
+
+.day-booking-chip.status-rescheduled {
+  border-left-color: var(--warning);
+  background: var(--warning-bg);
+}
+
+.day-booking-chip.status-lost {
+  border-left-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.more-bookings-tag {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+/* Modal styles for Day View */
+.day-modal-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.day-booking-card {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  background: var(--bg-primary);
+  margin-bottom: 0.75rem;
+  transition: border-color var(--transition-fast);
+}
+
+.day-booking-card:hover {
+  border-color: var(--border-focus);
+}
+
+.day-booking-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.customer-info h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.2rem 0;
+  color: var(--text-primary);
+}
+
+.vehicle-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.day-booking-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-light);
+  font-size: 0.85rem;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-secondary);
+}
+
+.detail-item strong {
+  color: var(--text-primary);
+}
+
+.badge-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-full);
+}
+
+@media (max-width: 768px) {
+  .calendar-day-cell {
+    min-height: 80px;
+    padding: 0.4rem;
+  }
+  
+  .day-bookings-list {
+    display: none;
+  }
+  
+  .month-title {
+    font-size: 1.1rem;
+    min-width: 140px;
+  }
+}
