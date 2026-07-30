@@ -76,7 +76,7 @@ export const SujalList: React.FC = () => {
       <div className="dashboard-header" style={{ marginBottom: '2rem' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-            <h1 style={{ margin: 0 }}>Daily Call List</h1>
+            <h1 style={{ margin: 0 }}>Pending Call List</h1>
             <div className="daily-call-stat-card">
               <div className="stat-icon-box">
                 <Phone size={16} className="text-accent" />
