@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { DailyQuicksLeadInput } from '../shared/dailyQuicks/types';
+import type { DailyQuicksLeadInput } from '../shared/dailyQuicks/types.js';
 
 export function createSupabaseAdmin() {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -65,7 +65,7 @@ export async function getDailySummaryByDate(date: string) {
 }
 
 export async function upsertDailySummary(
-  summary: import('../shared/dailyQuicks/types').DailyQuicksSummary
+  summary: import('../shared/dailyQuicks/types.js').DailyQuicksSummary
 ) {
   const supabase = createSupabaseAdmin();
   const generatedAt = new Date().toISOString();

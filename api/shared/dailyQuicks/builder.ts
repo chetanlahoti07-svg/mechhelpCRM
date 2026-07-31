@@ -2,8 +2,8 @@ import type {
   DailyQuicksEntry,
   DailyQuicksLeadInput,
   DailyQuicksSummary,
-} from './types';
-import { isISTOnOrBefore, isISTToday, isISTTomorrow, toISTDateString } from './istDate';
+} from './types.js';
+import { isISTOnOrBefore, isISTToday, isISTTomorrow, toISTDateString } from './istDate.js';
 
 const CLOSED_STAGES = ['Booked', 'Completed', 'Lost'];
 

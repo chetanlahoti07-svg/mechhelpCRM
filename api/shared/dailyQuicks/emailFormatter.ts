@@ -1,5 +1,5 @@
-import type { DailyQuicksSummary } from './types';
-import { formatISTDisplayDate } from './istDate';
+import type { DailyQuicksSummary } from './types.js';
+import { formatISTDisplayDate } from './istDate.js';
 
 function formatSection(title: string, rows: { customerName: string; identifier: string }[]): string {
   const lines = rows.length

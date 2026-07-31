@@ -1,18 +1,18 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { buildDailyQuicksSummary } from '../shared/dailyQuicks/builder';
+import { buildDailyQuicksSummary } from '../shared/dailyQuicks/builder.js';
 import {
   formatDailyQuicksEmailBody,
   formatDailyQuicksEmailHtml,
   formatDailyQuicksEmailSubject,
-} from '../shared/dailyQuicks/emailFormatter';
-import { toISTDateString } from '../shared/dailyQuicks/istDate';
+} from '../shared/dailyQuicks/emailFormatter.js';
+import { toISTDateString } from '../shared/dailyQuicks/istDate.js';
 import {
   fetchLeadsForSummary,
   getDailySummaryByDate,
   markEmailSent,
   upsertDailySummary,
-} from '../lib/supabaseAdmin';
-import { sendDailyQuicksEmail } from '../lib/sendEmail';
+} from '../lib/supabaseAdmin.js';
+import { sendDailyQuicksEmail } from '../lib/sendEmail.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const authHeader = req.headers.authorization;
