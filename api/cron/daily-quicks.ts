@@ -29,6 +29,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const todayIST = toISTDateString(new Date());
     const isForce = req.query.force === 'true';
+    const isTest = req.query.test === 'true';
+
+    if (isTest) {
+      console.log('Sending Hello test email...');
+      await sendDailyQuicksEmail(
+        '🔧 MechHelp CRM • Email Test (Hello)',
+        'Hello!\n\nYour MechHelp CRM email notification system is working perfectly.\n\nHave a great day!'
+      );
+      return res.status(200).json({
+        ok: true,
+        testMode: true,
+        message: 'Hello test email sent successfully to ' + process.env.ADMIN_NOTIFICATION_EMAIL,
+      });
+    }
 
     // FIX: Only skip if the email was actually delivered (email_sent = true).
     // Previously we skipped as soon as a DB record existed, which meant a
