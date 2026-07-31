@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { buildDailyQuicksSummary } from '../../shared/dailyQuicks/builder';
+import { buildDailyQuicksSummary } from '../shared/dailyQuicks/builder';
 import {
   formatDailyQuicksEmailBody,
   formatDailyQuicksEmailHtml,
   formatDailyQuicksEmailSubject,
-} from '../../shared/dailyQuicks/emailFormatter';
-import { toISTDateString } from '../../shared/dailyQuicks/istDate';
+} from '../shared/dailyQuicks/emailFormatter';
+import { toISTDateString } from '../shared/dailyQuicks/istDate';
 import {
   fetchLeadsForSummary,
   getDailySummaryByDate,
