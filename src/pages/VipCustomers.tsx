@@ -1,14 +1,16 @@
 import React, { useState, useMemo } from 'react';
 import { useLeadContext } from '../store/LeadContext';
+import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
 import { differenceInDays, startOfToday } from 'date-fns';
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export const VipCustomers: React.FC = () => {
-  const { leads } = useLeadContext();
+  const { leads, deleteLead } = useLeadContext();
   const today = startOfToday();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [error, setError] = useState<string | null>(null);
   const itemsPerPage = 10;
 
   const vipLeads = useMemo(() => {
@@ -36,6 +38,16 @@ export const VipCustomers: React.FC = () => {
   const totalPages = Math.max(1, Math.ceil(vipLeads.length / itemsPerPage));
   const currentData = vipLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+  const handleDelete = async (id: string) => {
+    try {
+      setError(null);
+      await deleteLead(id);
+    } catch (err) {
+      console.error('Failed to delete VIP customer:', err);
+      setError('Failed to delete VIP customer. Please try again.');
+    }
+  };
+
   return (
     <div className="vip-customers animate-fade-in">
       <div className="dashboard-header" style={{ marginBottom: '2rem' }}>
@@ -44,6 +56,12 @@ export const VipCustomers: React.FC = () => {
           <p className="text-muted">Proactively stay in touch even without an active deal.</p>
         </div>
       </div>
+
+      {error && (
+        <div style={{ padding: '0.75rem 1rem', marginBottom: '1.5rem', borderRadius: '8px', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: '1px solid var(--danger)', fontSize: '0.875rem' }}>
+          {error}
+        </div>
+      )}
 
       <div className="filters surface-panel" style={{ padding: '1.5rem', marginBottom: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ position: 'relative', flex: 1, maxWidth: '400px' }}>
@@ -72,11 +90,12 @@ export const VipCustomers: React.FC = () => {
               <th>Last Contacted</th>
               <th>Days Since Contact</th>
               <th>Stage</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {currentData.length === 0 && (
-              <tr><td colSpan={5} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No VIP customers match your search.</td></tr>
+              <tr><td colSpan={6} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No VIP customers match your search.</td></tr>
             )}
             {currentData.map(lead => (
               <tr key={lead.id}>
@@ -92,6 +111,12 @@ export const VipCustomers: React.FC = () => {
                   </span>
                 </td>
                 <td><span className="badge badge-gray">{lead.leadType}</span></td>
+                <td>
+                  <DeleteConfirmAction
+                    size="sm"
+                    onConfirm={() => handleDelete(lead.id)}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>

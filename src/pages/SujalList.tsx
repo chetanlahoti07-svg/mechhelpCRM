@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 import { useLeadContext } from '../store/LeadContext';
 import type { SujalCallListItem, SujalStatus } from '../types';
 import { AddLeadModal } from '../components/AddLeadModal';
-import { Plus, Phone, ClipboardEdit, X } from 'lucide-react';
+import { Plus, Phone, ClipboardEdit } from 'lucide-react';
 import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
 import './SujalList.css';
 
@@ -16,9 +16,15 @@ export const SujalList: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItemForConversion, setSelectedItemForConversion] = useState<SujalCallListItem | null>(null);
 
-  const [loggingItem, setLoggingItem] = useState<SujalCallListItem | null>(null);
-  const [logStatus, setLogStatus] = useState<SujalStatus>('Pending');
-  const [logNotes, setLogNotes] = useState('');
+  const [openLogCallRowId, setOpenLogCallRowId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setOpenLogCallRowId(null);
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   const handleDelete = async (id: string) => {
     try {
@@ -41,27 +47,38 @@ export const SujalList: React.FC = () => {
     setNewTag('');
   };
 
-  const handleOpenLogModal = (item: SujalCallListItem) => {
-    setLoggingItem(item);
-    setLogStatus(item.status);
-    setLogNotes('');
-  };
-
-  const handleSaveLog = () => {
-    if (!loggingItem) return;
-
+  const handleSelectOutcome = (item: SujalCallListItem, status: SujalStatus) => {
     updateSujalItem({ 
-      ...loggingItem, 
-      status: logStatus,
-      // In a real app we'd append notes to a history array
+      ...item, 
+      status,
     });
 
-    if (logStatus === 'Booked') {
-      setSelectedItemForConversion(loggingItem);
+    // TODO: verify Bookings counters refresh after status change
+    if (status === 'Booked') {
+      setSelectedItemForConversion(item);
       setIsModalOpen(true);
     }
 
-    setLoggingItem(null);
+    setOpenLogCallRowId(null);
+  };
+
+  const getStatusBadgeClass = (status: SujalStatus) => {
+    switch (status) {
+      case 'Call Not Received':
+        return 'badge-red';
+      case 'Details Shared':
+        return 'badge-blue';
+      case 'Retargeted':
+        return 'badge-orange';
+      case 'Booked':
+        return 'badge-green';
+      case 'Completed':
+        return 'badge-teal';
+      case 'Lost':
+        return 'badge-red';
+      default:
+        return 'badge-gray';
+    }
   };
 
   const todayStr = new Date().toISOString().split('T')[0];
@@ -138,7 +155,7 @@ export const SujalList: React.FC = () => {
                   </span>
                 </td>
                 <td>
-                  <span className={`badge badge-gray`}>{item.status}</span>
+                  <span className={`badge ${getStatusBadgeClass(item.status)}`}>{item.status}</span>
                 </td>
                 <td>
                   <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
@@ -154,9 +171,49 @@ export const SujalList: React.FC = () => {
                     <a href={`tel:${item.salesIqTag}`} className="btn btn-secondary btn-sm" title="Call">
                       <Phone size={14} /> Call
                     </a>
-                    <button className="btn btn-primary btn-sm" onClick={() => handleOpenLogModal(item)}>
-                      <ClipboardEdit size={14} /> Log Call
-                    </button>
+                    {openLogCallRowId === item.id ? (
+                      <div style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
+                        <select
+                          className="form-select btn-sm"
+                          style={{ 
+                            height: '32px', 
+                            padding: '0 0.5rem', 
+                            fontSize: '0.875rem',
+                            borderRadius: '6px',
+                            borderColor: 'var(--border-color)',
+                            backgroundColor: 'var(--bg-secondary)',
+                            color: 'var(--text-primary)',
+                            cursor: 'pointer'
+                          }}
+                          value=""
+                          autoFocus
+                          onChange={(e) => {
+                            const selectedOutcome = e.target.value as SujalStatus;
+                            if (selectedOutcome) {
+                              handleSelectOutcome(item, selectedOutcome);
+                            }
+                          }}
+                        >
+                          <option value="" disabled>Select Outcome...</option>
+                          <option value="Call Not Received">Call Not Received</option>
+                          <option value="Details Shared">Details Shared</option>
+                          <option value="Retargeted">Retargeted</option>
+                          <option value="Booked">Booked</option>
+                          <option value="Completed">Completed</option>
+                          <option value="Lost">Lost</option>
+                        </select>
+                      </div>
+                    ) : (
+                      <button 
+                        className="btn btn-primary btn-sm" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenLogCallRowId(prev => prev === item.id ? null : item.id);
+                        }}
+                      >
+                        <ClipboardEdit size={14} /> Log Call
+                      </button>
+                    )}
                   </div>
                   {deleteErrorId === item.id && (
                     <span style={{ color: 'var(--danger)', fontSize: '0.75rem', position: 'absolute', marginTop: '2.5rem' }}>Failed to delete.</span>
@@ -167,47 +224,6 @@ export const SujalList: React.FC = () => {
           </tbody>
         </table>
       </div>
-
-      {loggingItem && (
-        <div className="modal-overlay">
-          <div className="modal-content animate-fade-in" style={{ maxWidth: '450px' }}>
-            <div className="modal-header">
-              <h2>Log Call: {loggingItem.salesIqTag}</h2>
-              <button onClick={() => setLoggingItem(null)} className="btn-icon"><X size={20} /></button>
-            </div>
-            <div className="modal-body">
-              <div className="form-group mb-4">
-                <label className="form-label">Call Outcome</label>
-                <select 
-                  className="form-select" 
-                  value={logStatus}
-                  onChange={e => setLogStatus(e.target.value as SujalStatus)}
-                >
-                  <option value="Pending">Pending</option>
-                  <option value="Answered">Answered</option>
-                  <option value="Call Not Received">Call Not Received</option>
-                  <option value="Not Interested">Not Interested</option>
-                  <option value="Booked">Booked</option>
-                </select>
-              </div>
-              <div className="form-group mb-4">
-                <label className="form-label">Notes</label>
-                <textarea 
-                  className="form-textarea" 
-                  rows={3}
-                  value={logNotes}
-                  onChange={e => setLogNotes(e.target.value)}
-                  placeholder="Enter call notes here..."
-                ></textarea>
-              </div>
-              <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border-light)' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setLoggingItem(null)}>Cancel</button>
-                <button type="button" className="btn btn-primary" onClick={handleSaveLog}>Save Log</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {isModalOpen && (
         <AddLeadModal 

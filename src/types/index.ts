@@ -46,7 +46,7 @@ export interface Lead {
   createdDate: string;
 }
 
-export type SujalStatus = 'Pending' | 'Answered' | 'Call Not Received' | 'Booked' | 'Not Interested';
+export type SujalStatus = 'Pending' | 'Answered' | 'Call Not Received' | 'Details Shared' | 'Retargeted' | 'Booked' | 'Completed' | 'Lost' | 'Not Interested';
 
 export interface SujalCallListItem {
   id: string;

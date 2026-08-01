@@ -106,6 +106,7 @@ export const LeadProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Error deleting lead:', error);
       alert('Failed to delete lead.');
+      throw error;
     }
   };
 
