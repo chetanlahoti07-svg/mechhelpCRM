@@ -11,9 +11,9 @@ import {
   Star, 
   MessageCircle, 
   PhoneCall, 
-  RotateCcw,
   BarChart3,
-  Settings
+  Settings,
+  CreditCard
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -21,14 +21,14 @@ const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/daily-quicks', label: 'Daily Quicks', icon: Sun, nested: true },
   { path: '/leads', label: 'All Leads', icon: Users },
-  { path: '/leads/today', label: "Today's Remaining Leads", icon: CalendarCheck },
+  { path: '/leads/today', label: "Today's Remainder", icon: CalendarCheck },
   { path: '/bookings', label: 'Bookings', icon: CalendarDays },
   { path: '/kanban', label: 'Kanban', icon: KanbanSquare },
   { path: '/vip', label: 'VIP Customers', icon: Star },
   { path: '/whatsapp', label: 'WhatsApp Broadcast', icon: MessageCircle },
   { path: '/sujal', label: 'Pending Call List', icon: PhoneCall },
-  { path: '/bookings?filter=rescheduled', label: 'Rescheduled Bookings', icon: RotateCcw },
   { path: '/bookings/calendar', label: 'Booking Calendar', icon: Calendar },
+  { path: '/settlements', label: 'Garage Settlement', icon: CreditCard },
   { path: '/reports', label: 'Reports', icon: BarChart3 },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];

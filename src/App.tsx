@@ -15,6 +15,7 @@ import { VipCustomers } from './pages/VipCustomers';
 import { WhatsappBroadcast } from './pages/WhatsappBroadcast';
 import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
+import { GarageSettlement } from './pages/GarageSettlement';
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
             <Route path="bookings/calendar" element={<BookingCalendar />} />
             <Route path="vip" element={<VipCustomers />} />
             <Route path="whatsapp" element={<WhatsappBroadcast />} />
+            <Route path="settlements" element={<GarageSettlement />} />
             <Route path="reports" element={<Reports />} />
             <Route path="settings" element={<Settings />} />
           </Route>

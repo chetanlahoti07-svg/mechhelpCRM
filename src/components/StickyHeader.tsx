@@ -76,7 +76,7 @@ export const StickyHeader: React.FC = () => {
           <div className="stat-box clickable" onClick={() => navigate('/leads/today')}>
             <CalendarCheck size={18} className="text-danger" />
             <div className="stat-content">
-              <span className="stat-label">Today's Remaining</span>
+              <span className="stat-label">Today's Remainder</span>
               <span className="stat-value">{isLoading ? '-' : todaysRemainingLeads}</span>
             </div>
           </div>

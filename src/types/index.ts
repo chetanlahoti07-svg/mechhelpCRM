@@ -66,3 +66,50 @@ export interface CarBrandModel {
   brand: string;
   models: string[];
 }
+
+export interface LineItem {
+  id?: string;
+  billingId?: string;
+  name: string;
+  amount: number;
+  splitEnabled: boolean;
+  mechhelpPct: number;
+  garagePct: number;
+}
+
+export interface BookingBilling {
+  id: string;
+  bookingId: string;
+  leadId: string;
+  garageId: string;
+  totalAmount: number;
+  paidTo: 'garage' | 'mechhelp';
+  status: 'draft' | 'finalized';
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+  lineItems?: LineItem[];
+}
+
+export interface GarageSettlement {
+  id: string;
+  garageId: string;
+  billingId: string;
+  leadId: string;
+  netAmount: number;
+  settled: boolean;
+  settledAt?: string;
+  settledBy?: string;
+  createdAt: string;
+  customerName?: string;
+  bookingDate?: string;
+}
+
+export interface GarageWithBalance {
+  id: string;
+  name: string;
+  contactPhone?: string;
+  address?: string;
+  balance: number;
+}
+

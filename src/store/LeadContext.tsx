@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { Lead, SujalCallListItem } from '../types';
-import { LeadService, CallListService, migrateLocalDataToSupabase } from '../utils/dataLayer';
+import { LeadService, CallListService, migrateLocalDataToSupabase, SettlementService } from '../utils/dataLayer';
 import { supabase } from '../lib/supabase';
 
 interface LeadContextType {
@@ -12,6 +12,10 @@ interface LeadContextType {
   addSujalItem: (item: Omit<SujalCallListItem, 'id' | 'dateAdded'>) => Promise<void>;
   updateSujalItem: (item: SujalCallListItem) => Promise<void>;
   deleteSujalItem: (id: string) => Promise<void>;
+  finalizeBilling: (bookingId: string, lineItems: any[], paidTo: 'garage' | 'mechhelp') => Promise<any>;
+  getGaragesWithBalances: () => Promise<any[]>;
+  getGarageSettlements: (garageId: string) => Promise<any>;
+  settleGarage: (garageId: string) => Promise<any>;
   isLoading: boolean;
   isMigrating: boolean;
 }
@@ -140,8 +144,28 @@ export const LeadProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const finalizeBilling = async (bookingId: string, lineItems: any[], paidTo: 'garage' | 'mechhelp') => {
+    const res = await SettlementService.finalizeBilling(bookingId, lineItems, paidTo);
+    await fetchAllData();
+    return res;
+  };
+
+  const getGaragesWithBalances = async () => {
+    return SettlementService.getGaragesWithBalances();
+  };
+
+  const getGarageSettlements = async (garageId: string) => {
+    return SettlementService.getGarageSettlements(garageId);
+  };
+
+  const settleGarage = async (garageId: string) => {
+    const res = await SettlementService.settleGarage(garageId);
+    await fetchAllData();
+    return res;
+  };
+
   return (
-    <LeadContext.Provider value={{ leads, sujalList, addLead, updateLead, deleteLead, addSujalItem, updateSujalItem, deleteSujalItem, isLoading, isMigrating }}>
+    <LeadContext.Provider value={{ leads, sujalList, addLead, updateLead, deleteLead, addSujalItem, updateSujalItem, deleteSujalItem, finalizeBilling, getGaragesWithBalances, getGarageSettlements, settleGarage, isLoading, isMigrating }}>
       {children}
     </LeadContext.Provider>
   );

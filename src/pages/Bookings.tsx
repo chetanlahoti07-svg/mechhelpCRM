@@ -7,6 +7,7 @@ import { RescheduleModal } from '../components/RescheduleModal';
 import { TimelineModal } from '../components/TimelineModal';
 import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
 import { BookingStatusDropdown } from '../components/BookingStatusDropdown';
+import { CompletedModal } from '../components/CompletedModal';
 import type { Lead, LeadType } from '../types';
 
 const parseBookingDate = (dStr?: string): Date => {
@@ -26,6 +27,7 @@ export const Bookings: React.FC = () => {
   // Modals & Delete state
   const [rescheduleLead, setRescheduleLead] = useState<Lead | null>(null);
   const [timelineLead, setTimelineLead] = useState<Lead | null>(null);
+  const [completedLead, setCompletedLead] = useState<Lead | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -54,8 +56,8 @@ export const Bookings: React.FC = () => {
     } else if (filter === 'cancelled') {
       data = data.filter(l => l.leadType === 'Lost');
     } else if (filter === 'all') {
-      // By default, maybe only show active bookings unless specifically searching
-      data = data.filter(l => l.leadType === 'Booked');
+      // 'All Bookings' — every booking ever created regardless of status (spec §11)
+      // No additional filter: allBookings already scopes to leads with a bookingDateTime
     }
 
     // Apply search across multiple fields
@@ -147,7 +149,7 @@ export const Bookings: React.FC = () => {
             value={filter}
             onChange={(e) => { setFilter(e.target.value); setCurrentPage(1); }}
           >
-            <option value="all">Active Bookings</option>
+            <option value="all">All Bookings</option>
             <option value="today">Today's Bookings</option>
             <option value="tomorrow">Tomorrow's Bookings</option>
             <option value="rescheduled">Rescheduled Bookings</option>
@@ -261,6 +263,17 @@ export const Bookings: React.FC = () => {
                             Mark Notified
                           </button>
                         )}
+                        {lead.garageNotified && isConfirmed && (
+                          <button 
+                            type="button"
+                            className="btn btn-sm flex items-center justify-center gap-1"
+                            onClick={() => setCompletedLead(lead)}
+                            disabled={deletingId === lead.id}
+                            style={{ backgroundColor: 'var(--success)', color: '#fff', border: 'none' }}
+                          >
+                            Completed
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -306,6 +319,12 @@ export const Bookings: React.FC = () => {
         isOpen={!!timelineLead}
         onClose={() => setTimelineLead(null)}
         lead={timelineLead}
+      />
+
+      <CompletedModal
+        isOpen={!!completedLead}
+        onClose={() => setCompletedLead(null)}
+        lead={completedLead}
       />
     </div>
   );

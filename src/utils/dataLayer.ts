@@ -116,6 +116,19 @@ export const LeadService = {
     const createdDate = new Date().toISOString();
     
     if (useSupabase) {
+      // Attempt to resolve garage_id from the garage_assigned text at creation time.
+      // This ensures new bookings are immediately settlement-ready without needing
+      // the finalize API's fallback lookup.
+      let garageId: string | null = null;
+      if (lead.garageAssigned) {
+        const { data: garageMatch } = await supabase
+          .from('garages')
+          .select('id')
+          .ilike('name', lead.garageAssigned.trim())
+          .maybeSingle();
+        if (garageMatch) garageId = garageMatch.id;
+      }
+
       const dbLead = {
         id: newLeadId,
         user_id: null, // No auth needed
@@ -128,6 +141,7 @@ export const LeadService = {
         lead_type: lead.leadType,
         booking_type: lead.bookingType,
         garage_assigned: lead.garageAssigned,
+        garage_id: garageId,
         booking_date_time: lead.bookingDateTime,
         garage_notified: lead.garageNotified,
         next_follow_up_date: lead.nextFollowUpDate,
@@ -168,8 +182,19 @@ export const LeadService = {
 
   async updateLead(updatedLead: Lead): Promise<Lead> {
     if (useSupabase) {
-      // 1. Update the main lead
-      const dbLead = mapLeadToDb(updatedLead);
+      // 1. Resolve garage_id from garage_assigned text (keeps it in sync if garage changes on reschedule)
+      let garageId: string | null = null;
+      if (updatedLead.garageAssigned) {
+        const { data: garageMatch } = await supabase
+          .from('garages')
+          .select('id')
+          .ilike('name', updatedLead.garageAssigned.trim())
+          .maybeSingle();
+        if (garageMatch) garageId = garageMatch.id;
+      }
+
+      // 2. Update the main lead (including garage_id)
+      const dbLead = { ...mapLeadToDb(updatedLead), garage_id: garageId };
       const { error: leadError } = await supabase
         .from('leads')
         .update(dbLead)
@@ -449,3 +474,487 @@ export const migrateLocalDataToSupabase = async () => {
     throw error;
   }
 };
+
+// Settlement and Billing Data Access Layer
+import { calculateSettlement } from '../../shared/settlementCalculator';
+
+const BILLING_KEY = 'mechhelp_crm_billing';
+const LINE_ITEMS_KEY = 'mechhelp_crm_line_items';
+const SETTLEMENTS_KEY = 'mechhelp_crm_settlements';
+
+export const MOCK_GARAGES = [
+  { id: 'g1', name: 'Umar Automobiles' },
+  { id: 'g2', name: 'V.S Car Care' },
+  { id: 'g3', name: 'Shree Govind Automobile' },
+  { id: 'g4', name: 'Sarkar Garage' },
+  { id: 'g5', name: 'The Engine Room' },
+  { id: 'g6', name: 'Car Hub' },
+  { id: 'g7', name: 'D & G Auto Care' },
+  { id: 'g8', name: 'B.S Autopoint' },
+  { id: 'g9', name: 'The Mechanic' },
+  { id: 'g10', name: 'Car Way Motors' },
+  { id: 'g11', name: 'Good Luck Automobile' },
+  { id: 'g12', name: 'New Friends Automobiles and Auto Electrics' },
+  { id: 'g13', name: 'S-Drive Auto Care' },
+  { id: 'g14', name: 'Shivaji Motors' },
+  { id: 'g15', name: 'Fulsunge Automobiles' },
+  { id: 'g16', name: 'Moving Wheels Car Garage' },
+  { id: 'g17', name: 'Taj Automobiles' },
+  { id: 'g18', name: 'Rathi Autoworks' }
+];
+
+export const SettlementService = {
+  async finalizeBilling(
+    bookingId: string,
+    lineItems: any[],
+    paidTo: 'garage' | 'mechhelp'
+  ): Promise<any> {
+    if (useSupabase) {
+      // 1. Fetch the lead to get garage details
+      const { data: lead, error: leadError } = await supabase
+        .from('leads')
+        .select('id, garage_id, garage_assigned, customer_name')
+        .eq('id', bookingId)
+        .maybeSingle();
+
+      if (leadError) throw leadError;
+      if (!lead) throw new Error('Booking not found.');
+
+      // 2. Resolve garage_id — fallback to name lookup if null
+      let resolvedGarageId: string | null = lead.garage_id ?? null;
+
+      if (!resolvedGarageId && lead.garage_assigned) {
+        const { data: garageByName, error: gnErr } = await supabase
+          .from('garages')
+          .select('id')
+          .ilike('name', lead.garage_assigned.trim())
+          .maybeSingle();
+        if (gnErr) throw gnErr;
+        if (garageByName) {
+          resolvedGarageId = garageByName.id;
+          // Patch garage_id back for future calls
+          await supabase.from('leads').update({ garage_id: resolvedGarageId }).eq('id', bookingId);
+        }
+      }
+
+      if (!resolvedGarageId) {
+        const name = lead.garage_assigned || '(none)';
+        throw new Error(`Booking garage "${name}" could not be matched to a known garage. Please check the garage name or re-assign the booking before completing it.`);
+      }
+
+      // 3. Prevent double billing
+      const { data: existingBilling, error: billCheckErr } = await supabase
+        .from('booking_billing')
+        .select('id')
+        .eq('booking_id', bookingId)
+        .maybeSingle();
+      if (billCheckErr) throw billCheckErr;
+      if (existingBilling) throw new Error('Billing is already finalized for this booking.');
+
+      // 4. Compute totals
+      const calcResult = calculateSettlement(
+        lineItems.map(item => ({
+          name: item.name,
+          amount: Number(item.amount) || 0,
+          splitEnabled: !!item.splitEnabled,
+          mechhelpPct: Number(item.mechhelpPct) ?? 20,
+          garagePct: Number(item.garagePct) ?? 80,
+        })),
+        paidTo
+      );
+
+      // 5. Create booking_billing
+      const { data: billing, error: billingErr } = await supabase
+        .from('booking_billing')
+        .insert({
+          booking_id: bookingId,
+          lead_id: bookingId,
+          garage_id: resolvedGarageId,
+          total_amount: calcResult.totalAmount,
+          paid_to: paidTo,
+          status: 'finalized',
+        })
+        .select('*')
+        .single();
+      if (billingErr) throw billingErr;
+
+      // 6. Create billing_line_items
+      if (lineItems.length > 0) {
+        const { error: liErr } = await supabase.from('billing_line_items').insert(
+          lineItems.map(item => ({
+            billing_id: billing.id,
+            name: item.name,
+            amount: Number(item.amount) || 0,
+            split_enabled: !!item.splitEnabled,
+            mechhelp_pct: Number(item.mechhelpPct) ?? 20,
+            garage_pct: Number(item.garagePct) ?? 80,
+          }))
+        );
+        if (liErr) throw liErr;
+      }
+
+      // 7. Create garage_settlements row if total > 0 (skip ₹0 / free-service bookings)
+      if (calcResult.totalAmount > 0) {
+        const { error: settlErr } = await supabase.from('garage_settlements').insert({
+          garage_id: resolvedGarageId,
+          billing_id: billing.id,
+          lead_id: bookingId,
+          net_amount: calcResult.netAmount,
+          settled: false,
+        });
+        if (settlErr) throw settlErr;
+      }
+
+      // 8. Mark lead as Completed
+      const { error: updateErr } = await supabase
+        .from('leads')
+        .update({ lead_type: 'Completed' })
+        .eq('id', bookingId);
+      if (updateErr) throw updateErr;
+
+      return { success: true, billing, calculations: calcResult };
+
+    } else {
+      await delay();
+      
+      // Get lead details
+      const leads = await LeadService.getLeads();
+      const leadIndex = leads.findIndex(l => l.id === bookingId);
+      if (leadIndex === -1) throw new Error('Booking not found');
+      
+      const lead = leads[leadIndex];
+      const garageName = lead.garageAssigned || '';
+
+      // Match mock garage
+      const matchedGarage = MOCK_GARAGES.find(
+        g => g.name.toLowerCase().trim() === garageName.toLowerCase().trim()
+      ) || MOCK_GARAGES[0];
+
+      // Prevent double billing
+      const billingsData = localStorage.getItem(BILLING_KEY);
+      const billings: any[] = billingsData ? JSON.parse(billingsData) : [];
+      if (billings.some(b => b.bookingId === bookingId)) {
+        throw new Error('Billing is already finalized for this booking.');
+      }
+
+      // Calculate totals
+      const calcResult = calculateSettlement(
+        lineItems.map(item => ({
+          name: item.name,
+          amount: Number(item.amount) || 0,
+          splitEnabled: !!item.splitEnabled,
+          mechhelpPct: Number(item.mechhelpPct) ?? 20,
+          garagePct: Number(item.garagePct) ?? 80,
+        })),
+        paidTo
+      );
+
+      // Create booking billing
+      const billingId = uuidv4();
+      const newBilling = {
+        id: billingId,
+        bookingId,
+        leadId: bookingId,
+        garageId: matchedGarage.id,
+        totalAmount: calcResult.totalAmount,
+        paidTo,
+        status: 'finalized' as const,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      // Create line items
+      const lineItemsData = localStorage.getItem(LINE_ITEMS_KEY);
+      const existingLineItems: any[] = lineItemsData ? JSON.parse(lineItemsData) : [];
+      const newLineItems = lineItems.map(item => ({
+        id: uuidv4(),
+        billingId,
+        name: item.name,
+        amount: Number(item.amount) || 0,
+        splitEnabled: !!item.splitEnabled,
+        mechhelpPct: Number(item.mechhelpPct) ?? 20,
+        garagePct: Number(item.garagePct) ?? 80,
+        createdAt: new Date().toISOString()
+      }));
+
+      // Create garage settlement
+      const settlementsData = localStorage.getItem(SETTLEMENTS_KEY);
+      const settlements: any[] = settlementsData ? JSON.parse(settlementsData) : [];
+
+      if (calcResult.totalAmount > 0) {
+        const newSettlement = {
+          id: uuidv4(),
+          garageId: matchedGarage.id,
+          billingId,
+          leadId: bookingId,
+          netAmount: calcResult.netAmount,
+          settled: false,
+          createdAt: new Date().toISOString()
+        };
+        settlements.unshift(newSettlement);
+        localStorage.setItem(SETTLEMENTS_KEY, JSON.stringify(settlements));
+      }
+
+      // Save billing & line items
+      billings.unshift(newBilling);
+      localStorage.setItem(BILLING_KEY, JSON.stringify(billings));
+      localStorage.setItem(LINE_ITEMS_KEY, JSON.stringify([...newLineItems, ...existingLineItems]));
+
+      // Update Lead Status to Completed
+      lead.leadType = 'Completed';
+      lead.garageAssigned = matchedGarage.name;
+      leads[leadIndex] = lead;
+      localStorage.setItem(LEADS_KEY, JSON.stringify(leads));
+
+      return {
+        success: true,
+        billing: newBilling,
+        calculations: calcResult
+      };
+    }
+  },
+
+  async getGaragesWithBalances(): Promise<any[]> {
+    if (useSupabase) {
+      // Fetch all garages
+      const { data: garages, error: garagesErr } = await supabase
+        .from('garages')
+        .select('id, name')
+        .order('name', { ascending: true });
+      if (garagesErr) throw garagesErr;
+
+      // Fetch all unsettled settlements to compute balances
+      const { data: unsettled, error: settlErr } = await supabase
+        .from('garage_settlements')
+        .select('garage_id, net_amount')
+        .eq('settled', false);
+      if (settlErr) throw settlErr;
+
+      const balancesMap = new Map<string, number>();
+      (unsettled || []).forEach((row: any) => {
+        const current = balancesMap.get(row.garage_id) || 0;
+        balancesMap.set(row.garage_id, current + Number(row.net_amount));
+      });
+
+      return (garages || []).map((g: any) => ({
+        id: g.id,
+        name: g.name,
+        balance: Math.round((balancesMap.get(g.id) || 0) * 100) / 100,
+      }));
+
+    } else {
+      await delay();
+
+      const settlementsData = localStorage.getItem(SETTLEMENTS_KEY);
+      const settlements: any[] = settlementsData ? JSON.parse(settlementsData) : [];
+
+      // Calculate balances
+      const balancesMap = new Map<string, number>();
+      settlements.forEach(s => {
+        if (!s.settled) {
+          const current = balancesMap.get(s.garageId) || 0;
+          balancesMap.set(s.garageId, current + Number(s.netAmount));
+        }
+      });
+
+      return MOCK_GARAGES.map(g => ({
+        id: g.id,
+        name: g.name,
+        balance: Math.round((balancesMap.get(g.id) || 0) * 100) / 100
+      }));
+    }
+  },
+
+  async getGarageSettlements(garageId: string): Promise<any> {
+    if (useSupabase) {
+      // Confirm garage exists
+      const { data: garage, error: garageErr } = await supabase
+        .from('garages')
+        .select('id, name')
+        .eq('id', garageId)
+        .maybeSingle();
+      if (garageErr) throw garageErr;
+      if (!garage) throw new Error('Garage not found');
+
+      // Fetch settlements with joined lead and billing details
+      const { data: settlements, error: settlErr } = await supabase
+        .from('garage_settlements')
+        .select(`
+          id,
+          net_amount,
+          settled,
+          settled_at,
+          created_at,
+          leads (
+            id,
+            customer_name,
+            booking_date_time,
+            car_brand,
+            car_model
+          ),
+          booking_billing (
+            id,
+            total_amount,
+            paid_to,
+            status,
+            billing_line_items (
+              id,
+              name,
+              amount,
+              split_enabled,
+              mechhelp_pct,
+              garage_pct
+            )
+          )
+        `)
+        .eq('garage_id', garageId)
+        .order('created_at', { ascending: false });
+      if (settlErr) throw settlErr;
+
+      let balance = 0;
+      const formattedSettlements = (settlements || []).map((row: any) => {
+        const isSettled = !!row.settled;
+        const netAmount = Number(row.net_amount) || 0;
+        if (!isSettled) balance += netAmount;
+
+        return {
+          id: row.id,
+          netAmount,
+          settled: isSettled,
+          settledAt: row.settled_at,
+          createdAt: row.created_at,
+          customerName: row.leads?.customer_name || 'Unknown Customer',
+          bookingDate: row.leads?.booking_date_time || row.created_at,
+          carBrand: row.leads?.car_brand || '',
+          carModel: row.leads?.car_model || '',
+          billing: row.booking_billing ? {
+            id: row.booking_billing.id,
+            totalAmount: Number(row.booking_billing.total_amount),
+            paidTo: row.booking_billing.paid_to,
+            status: row.booking_billing.status,
+            lineItems: (row.booking_billing.billing_line_items || []).map((item: any) => ({
+              id: item.id,
+              name: item.name,
+              amount: Number(item.amount),
+              splitEnabled: !!item.split_enabled,
+              mechhelpPct: Number(item.mechhelp_pct),
+              garagePct: Number(item.garage_pct)
+            }))
+          } : null
+        };
+      });
+
+      return {
+        garage,
+        balance: Math.round(balance * 100) / 100,
+        settlements: formattedSettlements
+      };
+
+    } else {
+      await delay();
+
+      // Find mock garage name
+      const garage = MOCK_GARAGES.find(g => g.id === garageId);
+      if (!garage) throw new Error('Garage not found');
+
+      // Fetch local database structures
+      const settlementsData = localStorage.getItem(SETTLEMENTS_KEY);
+      const settlements: any[] = settlementsData ? JSON.parse(settlementsData) : [];
+
+      const billingsData = localStorage.getItem(BILLING_KEY);
+      const billings: any[] = billingsData ? JSON.parse(billingsData) : [];
+
+      const lineItemsData = localStorage.getItem(LINE_ITEMS_KEY);
+      const lineItems: any[] = lineItemsData ? JSON.parse(lineItemsData) : [];
+
+      const leads = await LeadService.getLeads();
+
+      const garageSettlements = settlements
+        .filter(s => s.garageId === garageId)
+        .map(s => {
+          const billing = billings.find(b => b.id === s.billingId);
+          const lead = leads.find(l => l.id === s.leadId);
+          const billingLineItems = lineItems.filter(li => li.billingId === s.billingId);
+
+          return {
+            id: s.id,
+            netAmount: Number(s.netAmount),
+            settled: !!s.settled,
+            settledAt: s.settledAt,
+            createdAt: s.createdAt,
+            customerName: lead?.customerName || 'Unknown Customer',
+            bookingDate: lead?.bookingDateTime || s.createdAt,
+            carBrand: lead?.carBrand || '',
+            carModel: lead?.carModel || '',
+            billing: billing ? {
+              id: billing.id,
+              totalAmount: Number(billing.totalAmount),
+              paidTo: billing.paidTo,
+              status: billing.status,
+              lineItems: billingLineItems.map(li => ({
+                id: li.id,
+                name: li.name,
+                amount: Number(li.amount),
+                splitEnabled: !!li.splitEnabled,
+                mechhelpPct: Number(li.mechhelpPct),
+                garagePct: Number(li.garagePct)
+              }))
+            } : null
+          };
+        });
+
+      // Compute balance
+      const balance = garageSettlements
+        .filter(s => !s.settled)
+        .reduce((sum, s) => sum + s.netAmount, 0);
+
+      return {
+        garage,
+        balance: Math.round(balance * 100) / 100,
+        settlements: garageSettlements
+      };
+    }
+  },
+
+  async settleGarage(garageId: string): Promise<any> {
+    if (useSupabase) {
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('garage_settlements')
+        .update({ settled: true, settled_at: now })
+        .eq('garage_id', garageId)
+        .eq('settled', false)
+        .select('*');
+      if (error) throw error;
+
+      return { success: true, count: data?.length || 0 };
+
+    } else {
+      await delay();
+
+      const settlementsData = localStorage.getItem(SETTLEMENTS_KEY);
+      const settlements: any[] = settlementsData ? JSON.parse(settlementsData) : [];
+
+      let count = 0;
+      const updatedSettlements = settlements.map(s => {
+        if (s.garageId === garageId && !s.settled) {
+          count++;
+          return {
+            ...s,
+            settled: true,
+            settledAt: new Date().toISOString()
+          };
+        }
+        return s;
+      });
+
+      localStorage.setItem(SETTLEMENTS_KEY, JSON.stringify(updatedSettlements));
+
+      return {
+        success: true,
+        count
+      };
+    }
+  }
+};
+

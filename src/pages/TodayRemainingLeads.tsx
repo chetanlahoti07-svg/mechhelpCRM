@@ -66,7 +66,7 @@ export const TodayRemainingLeads: React.FC = () => {
     <div className="all-leads animate-fade-in">
       <div className="dashboard-header" style={{ marginBottom: '2rem' }}>
         <div>
-          <h1>Today's Remaining Leads</h1>
+          <h1>Today's Remainder</h1>
           <p>Retarget leads scheduled for follow-up today</p>
         </div>
       </div>
