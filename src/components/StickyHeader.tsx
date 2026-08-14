@@ -5,25 +5,17 @@ import { useTheme } from '../store/ThemeContext';
 import { CallOutcomeModal } from './CallOutcomeModal';
 import { AddLeadModal } from './AddLeadModal';
 import type { Lead } from '../types';
-import { Phone, CheckCircle, CalendarCheck, Calendar, Sun, Moon, List, RotateCcw } from 'lucide-react';
+import { CheckCircle, Calendar, Sun, Moon, List, RotateCcw } from 'lucide-react';
 import './StickyHeader.css';
-import { isToday, isTomorrow, startOfToday } from 'date-fns';
+import { isToday, isTomorrow } from 'date-fns';
 
 export const StickyHeader: React.FC = () => {
   const { leads, isLoading } = useLeadContext();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
-  const today = startOfToday();
-
   const [selectedCallLead, setSelectedCallLead] = React.useState<Lead | null>(null);
   const [bookingLead, setBookingLead] = React.useState<Lead | null>(null);
-
-  // Logic
-  const callsDueToday = leads.filter(l => 
-    !['Booked', 'Completed', 'Lost'].includes(l.leadType) &&
-    new Date(l.nextFollowUpDate) <= today
-  ).length;
 
   const parseBookingDate = (dStr?: string): Date => {
     if (!dStr) return new Date(NaN);
@@ -34,11 +26,11 @@ export const StickyHeader: React.FC = () => {
   const bookingsToday = bookedLeads.filter(l => isToday(parseBookingDate(l.bookingDateTime))).length;
   const bookingsTomorrow = bookedLeads.filter(l => isTomorrow(parseBookingDate(l.bookingDateTime))).length;
   const totalBookings = bookedLeads.length;
-  
-  const todaysRemainingLeads = leads.filter(l => 
-    l.leadType === 'Retarget' && 
-    isToday(parseBookingDate(l.nextFollowUpDate))
-  ).length;
+
+  // Reminders logic matching ReminderPage (Retarget leads due today)
+  const todayReminders = leads.filter(l => l.leadType === 'Retarget' && isToday(parseBookingDate(l.nextFollowUpDate)));
+  const morningReminders = todayReminders.filter(l => l.retargetTimeSlot === 'morning').length;
+  const eveningReminders = todayReminders.filter(l => l.retargetTimeSlot === 'evening').length;
 
   const rescheduledCustomers = leads.filter(l => (l.bookingHistory?.length || 0) > 0).length;
   const rescheduledToday = leads.filter(l => 
@@ -49,11 +41,19 @@ export const StickyHeader: React.FC = () => {
     <header className="sticky-header surface-header">
       <div className="header-content">
         <div className="header-stats">
-          <div className="stat-box clickable" onClick={() => navigate('/leads?filter=calls-due-today')}>
-            <Phone size={18} className="text-accent" />
+          <div className="stat-box clickable" onClick={() => navigate('/leads/today/morning')}>
+            <Sun size={18} className="text-warning" />
             <div className="stat-content">
-              <span className="stat-label">Calls Due</span>
-              <span className="stat-value">{isLoading ? '-' : callsDueToday}</span>
+              <span className="stat-label">Reminders: Morning</span>
+              <span className="stat-value">{isLoading ? '-' : morningReminders}</span>
+            </div>
+          </div>
+
+          <div className="stat-box clickable" onClick={() => navigate('/leads/today/evening')}>
+            <Moon size={18} className="text-primary" />
+            <div className="stat-content">
+              <span className="stat-label">Reminders: Evening</span>
+              <span className="stat-value">{isLoading ? '-' : eveningReminders}</span>
             </div>
           </div>
           
@@ -70,14 +70,6 @@ export const StickyHeader: React.FC = () => {
             <div className="stat-content">
               <span className="stat-label">Tomorrow</span>
               <span className="stat-value">{isLoading ? '-' : bookingsTomorrow}</span>
-            </div>
-          </div>
-
-          <div className="stat-box clickable" onClick={() => navigate('/leads/today')}>
-            <CalendarCheck size={18} className="text-danger" />
-            <div className="stat-content">
-              <span className="stat-label">Today's Remainder</span>
-              <span className="stat-value">{isLoading ? '-' : todaysRemainingLeads}</span>
             </div>
           </div>
 

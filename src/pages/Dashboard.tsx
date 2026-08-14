@@ -3,7 +3,7 @@ import { useLeadContext } from '../store/LeadContext';
 import { isToday, isBefore, startOfToday, differenceInDays } from 'date-fns';
 import { AddLeadModal } from '../components/AddLeadModal';
 import { CallOutcomeModal } from '../components/CallOutcomeModal';
-import { Plus, Phone, Edit, Crown, Car, CheckCircle } from 'lucide-react';
+import { Plus, Phone, Edit } from 'lucide-react';
 import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
 import type { Lead } from '../types';
 import './Dashboard.css';
@@ -53,17 +53,6 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  // Calculate highest priority lead
-  const overdueLeads = priorityQueue.filter(l => isBefore(new Date(l.nextFollowUpDate), today));
-  const todayLeads = priorityQueue.filter(l => isToday(new Date(l.nextFollowUpDate)));
-  const nextToCall = overdueLeads.length > 0 ? overdueLeads[0] : (todayLeads.length > 0 ? todayLeads[0] : null);
-
-  // VIP Cars data
-  const vipCars = leads.filter(l => l.isVip && !['Completed', 'Lost'].includes(l.leadType));
-  const vipActive = vipCars.filter(l => !['Booked', 'Completed', 'Lost'].includes(l.leadType));
-  const vipBooked = vipCars.filter(l => l.leadType === 'Booked');
-  const topVipCars = vipCars.slice(0, 4);
-
   return (
     <div className="dashboard animate-fade-in">
       <div className="dashboard-header">
@@ -72,78 +61,6 @@ export const Dashboard: React.FC = () => {
           <Plus size={18} /> New Lead
         </button>
       </div>
-
-      {nextToCall && (
-        <div className="priority-call-card surface-panel">
-          <div className="priority-call-left">
-            <div className="priority-call-badge">🔴 Priority Call</div>
-            <h2 className="priority-call-name">{nextToCall.customerName || 'Unknown'}</h2>
-            <div className="priority-call-details">
-              <div className="priority-call-detail-item">
-                <span className="detail-label">Phone</span>
-                <span className="detail-value">{nextToCall.identifier}</span>
-              </div>
-              <div className="priority-call-detail-item">
-                <span className="detail-label">Vehicle</span>
-                <span className="detail-value">{nextToCall.carBrand} {nextToCall.carModel}</span>
-              </div>
-              <div className="priority-call-detail-item">
-                <span className="detail-label">Priority</span>
-                <span className={`detail-badge detail-badge-${nextToCall.priority?.toLowerCase()}`}>
-                  {nextToCall.priority}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="priority-call-right">
-            <button className="btn btn-primary btn-lg" onClick={() => handleMarkContacted(nextToCall)}>
-              <Phone size={18} /> Mark Contacted
-            </button>
-          </div>
-        </div>
-      )}
-
-      {vipCars.length > 0 && (
-        <div className="vip-cars-card surface-panel">
-          <div className="vip-cars-header">
-            <h3>💎 VIP Cars</h3>
-            <div className="vip-stats">
-              <div className="stat-box">
-                <Crown size={18} className="text-vip" />
-                <div className="stat-content">
-                  <span className="stat-label">Total</span>
-                  <span className="stat-value">{vipCars.length}</span>
-                </div>
-              </div>
-              <div className="stat-box">
-                <Car size={18} className="text-accent" />
-                <div className="stat-content">
-                  <span className="stat-label">Active</span>
-                  <span className="stat-value">{vipActive.length}</span>
-                </div>
-              </div>
-              <div className="stat-box">
-                <CheckCircle size={18} className="text-success" />
-                <div className="stat-content">
-                  <span className="stat-label">Booked</span>
-                  <span className="stat-value">{vipBooked.length}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="vip-cars-grid">
-            {topVipCars.map(car => (
-              <div key={car.id} className="vip-car-item">
-                <div className="vip-car-info">
-                  <div className="vip-car-name">{car.customerName}</div>
-                  <div className="vip-car-model">{car.carBrand} {car.carModel}</div>
-                </div>
-                <div className="vip-car-stage">{car.leadType}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="queue-section">
         <h2 className="section-title">Ranked Call Queue</h2>
@@ -169,9 +86,18 @@ export const Dashboard: React.FC = () => {
                       {isVipTouch && lead.isVip && <span className="badge badge-vip">30d Touchbase</span>}
                     </div>
                     <div className="queue-card-details">
-                      <p><strong>Identifier:</strong> {lead.identifier}</p>
-                      <p><strong>Car:</strong> {lead.carBrand} {lead.carModel}</p>
-                      <p><strong>Stage:</strong> {lead.leadType}</p>
+                      <div className="queue-card-detail-item">
+                        <span className="label-caps">Identifier</span>
+                        <span className="detail-val">{lead.identifier}</span>
+                      </div>
+                      <div className="queue-card-detail-item">
+                        <span className="label-caps">Car</span>
+                        <span className="detail-val">{lead.carBrand} {lead.carModel}</span>
+                      </div>
+                      <div className="queue-card-detail-item">
+                        <span className="label-caps">Stage</span>
+                        <span className="detail-val">{lead.leadType}</span>
+                      </div>
                     </div>
                   </div>
                   <div className="queue-card-actions">

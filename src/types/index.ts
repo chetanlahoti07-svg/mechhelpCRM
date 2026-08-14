@@ -34,6 +34,7 @@ export interface Lead {
   leadType: LeadType;
   bookingType?: BookingType;
   garageAssigned?: string;
+  garageId?: string;
   bookingDateTime?: string;
   bookingHistory?: RescheduleHistoryEntry[];
   activityHistory?: CallActivity[];
@@ -42,6 +43,7 @@ export interface Lead {
   lastContactedDate: string;
   isVip: boolean;
   whatsappBroadcast: boolean;
+  retargetTimeSlot?: 'morning' | 'evening' | null;
   notes: string;
   createdDate: string;
 }
@@ -83,6 +85,7 @@ export interface BookingBilling {
   leadId: string;
   garageId: string;
   totalAmount: number;
+  discount?: number;
   paidTo: 'garage' | 'mechhelp';
   status: 'draft' | 'finalized';
   createdBy?: string;

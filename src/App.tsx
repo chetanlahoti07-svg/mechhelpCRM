@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { LeadProvider } from './store/LeadContext';
 import { ThemeProvider } from './store/ThemeContext';
@@ -8,7 +8,7 @@ import { DailyQuicks } from './pages/DailyQuicks';
 import { SujalList } from './pages/SujalList';
 import { Kanban } from './pages/Kanban';
 import { AllLeads } from './pages/AllLeads';
-import { TodayRemainingLeads } from './pages/TodayRemainingLeads';
+import { ReminderPage } from './pages/ReminderPage';
 import { Bookings } from './pages/Bookings';
 import { BookingCalendar } from './pages/BookingCalendar';
 import { VipCustomers } from './pages/VipCustomers';
@@ -28,7 +28,10 @@ function App() {
             <Route path="kanban" element={<Kanban />} />
             <Route path="sujal" element={<SujalList />} />
             <Route path="leads" element={<AllLeads />} />
-            <Route path="leads/today" element={<TodayRemainingLeads />} />
+            {/* Redirect old /leads/today bookmark to morning by default */}
+            <Route path="leads/today" element={<Navigate to="/leads/today/morning" replace />} />
+            <Route path="leads/today/morning" element={<ReminderPage slot="morning" />} />
+            <Route path="leads/today/evening" element={<ReminderPage slot="evening" />} />
             <Route path="bookings" element={<Bookings />} />
             <Route path="bookings/calendar" element={<BookingCalendar />} />
             <Route path="vip" element={<VipCustomers />} />
@@ -44,3 +47,4 @@ function App() {
 }
 
 export default App;
+

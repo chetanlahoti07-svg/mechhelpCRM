@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { v4 as uuidv4 } from 'uuid';
 import type { Lead, LeadSource, LeadType, BookingType, Priority, CarBrandModel } from '../types';
-import { CAR_BRANDS, GARAGES, PREMIUM_MODELS } from '../data/seed';
+import { CAR_BRANDS, PREMIUM_MODELS } from '../data/seed';
 import { useLeadContext } from '../store/LeadContext';
 import './AddLeadModal.css';
 
@@ -13,7 +13,7 @@ interface AddLeadModalProps {
 }
 
 export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, initialData }) => {
-  const { addLead, updateLead } = useLeadContext();
+  const { addLead, updateLead, getGarageList } = useLeadContext();
   const isEditing = !!initialData?.id;
 
   const [leadSource, setLeadSource] = useState<LeadSource>(initialData?.leadSource || 'SalesIQ');
@@ -23,10 +23,21 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
   const [carModel, setCarModel] = useState(initialData?.carModel || '');
   const [priority, setPriority] = useState<Priority>(initialData?.priority || 'Medium');
   const [leadType, setLeadType] = useState<LeadType>(initialData?.leadType || 'Fresh Lead');
+  const [retargetTimeSlot, setRetargetTimeSlot] = useState<'morning' | 'evening' | null>(initialData?.retargetTimeSlot || null);
   
   const [bookingType, setBookingType] = useState<BookingType | undefined>(initialData?.bookingType);
   const [garageAssigned, setGarageAssigned] = useState(initialData?.garageAssigned || '');
   const [bookingDateTime, setBookingDateTime] = useState(initialData?.bookingDateTime ? initialData.bookingDateTime.split('T')[0] : '');
+
+  const [garageList, setGarageList] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      getGarageList()
+        .then(list => setGarageList(list))
+        .catch(err => console.error('Failed to load garages in AddLeadModal:', err));
+    }
+  }, [isOpen]);
 
   
   const [nextFollowUpDate, setNextFollowUpDate] = useState(
@@ -73,6 +84,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
         setCarModel('');
         setPriority('Medium');
         setLeadType('Fresh Lead');
+        setRetargetTimeSlot(null);
         setBookingType(undefined);
         setGarageAssigned('');
         setBookingDateTime('');
@@ -92,6 +104,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
         setCarModel(initialData.carModel || '');
         setPriority(initialData.priority || 'Medium');
         setLeadType(initialData.leadType || 'Fresh Lead');
+        setRetargetTimeSlot(initialData.retargetTimeSlot || null);
         setBookingType(initialData.bookingType);
         setGarageAssigned(initialData.garageAssigned || '');
         setBookingDateTime(initialData.bookingDateTime ? initialData.bookingDateTime.split('T')[0] : '');
@@ -185,6 +198,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
       lastContactedDate: isEditing ? initialData!.lastContactedDate! : new Date().toISOString(),
       isVip,
       whatsappBroadcast,
+      retargetTimeSlot: leadType === 'Retarget' ? retargetTimeSlot : null,
       notes,
       createdDate: isEditing ? initialData!.createdDate! : new Date().toISOString(),
     };
@@ -336,11 +350,36 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
               </div>
               <div className="form-group">
                 <label className="form-label">Lead Type / Stage</label>
-                <select className="form-select" value={leadType} onChange={e => setLeadType(e.target.value as LeadType)}>
+                <select className="form-select" value={leadType} onChange={e => {
+                  const newType = e.target.value as LeadType;
+                  setLeadType(newType);
+                  if (newType !== 'Retarget') setRetargetTimeSlot(null);
+                }}>
                   {['Fresh Lead', 'Call Not Received', 'Details Shared', 'Retarget', 'Booked', 'Completed', 'Lost'].map(t => (
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
+                {leadType === 'Retarget' && (
+                  <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Time Slot:</span>
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${retargetTimeSlot === 'morning' ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ padding: '0.2rem 0.6rem', fontSize: '0.8rem', borderRadius: '16px' }}
+                      onClick={() => setRetargetTimeSlot(retargetTimeSlot === 'morning' ? null : 'morning')}
+                    >
+                      ☀️ Morning
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${retargetTimeSlot === 'evening' ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ padding: '0.2rem 0.6rem', fontSize: '0.8rem', borderRadius: '16px' }}
+                      onClick={() => setRetargetTimeSlot(retargetTimeSlot === 'evening' ? null : 'evening')}
+                    >
+                      🌙 Evening
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -392,7 +431,10 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
                       }}
                     >
                       <option value="">Select Garage...</option>
-                      {GARAGES.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
+                      {garageAssigned && !garageList.some(g => g.name === garageAssigned) && (
+                        <option value={garageAssigned}>{garageAssigned} (Archived)</option>
+                      )}
+                      {garageList.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
                     </select>
                     {errors.garageAssigned && <div className="invalid-feedback">{errors.garageAssigned}</div>}
                   </div>

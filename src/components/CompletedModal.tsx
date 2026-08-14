@@ -18,31 +18,53 @@ interface TempLineItem {
   showPctEdit: boolean;
 }
 
+interface GarageOption {
+  id: string;
+  name: string;
+}
+
 export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
-  const { finalizeBilling } = useLeadContext();
+  const { finalizeBilling, getGarageList } = useLeadContext();
   const [lineItems, setLineItems] = useState<TempLineItem[]>([
     { name: 'General Service', amount: '', splitEnabled: true, mechhelpPct: 20, garagePct: 80, showPctEdit: false }
   ]);
+  const [discountStr, setDiscountStr] = useState('0');
   const [paidTo, setPaidTo] = useState<'garage' | 'mechhelp'>('garage');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Edit fields for lead details if needed
+  // Booking summary fields
   const [customerName, setCustomerName] = useState('');
   const [carBrand, setCarBrand] = useState('');
   const [carModel, setCarModel] = useState('');
-  const [garageAssigned, setGarageAssigned] = useState('');
   const [bookingDateTime, setBookingDateTime] = useState('');
 
+  // Garage dropdown state — stores both id and display name
+  const [garageList, setGarageList] = useState<GarageOption[]>([]);
+  const [selectedGarageId, setSelectedGarageId] = useState<string>('');
+  const [selectedGarageName, setSelectedGarageName] = useState<string>('');
+  const [garageListLoading, setGarageListLoading] = useState(false);
+
+  // Load garage list once when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    setGarageListLoading(true);
+    getGarageList()
+      .then(list => setGarageList(list))
+      .catch(err => console.error('Failed to load garages:', err))
+      .finally(() => setGarageListLoading(false));
+  }, [isOpen]);
+
+  // Pre-populate fields when lead changes
   useEffect(() => {
     if (lead) {
-      setCustomerName(lead.customerName);
-      setCarBrand(lead.carBrand);
-      setCarModel(lead.carModel);
-      setGarageAssigned(lead.garageAssigned || '');
+      setCustomerName(lead.customerName || '');
+      setCarBrand(lead.carBrand || '');
+      setCarModel(lead.carModel || '');
       setBookingDateTime(lead.bookingDateTime ? new Date(lead.bookingDateTime).toLocaleDateString('en-GB') : '');
-      
-      // Reset fields
+      setDiscountStr('0');
+
+      // Reset line items and payment
       setLineItems([
         { name: 'General Service', amount: '', splitEnabled: true, mechhelpPct: 20, garagePct: 80, showPctEdit: false }
       ]);
@@ -51,7 +73,38 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
     }
   }, [lead]);
 
+  // Pre-select garage once both lead and garageList are available.
+  // Priority: match by garage_id → fallback to case-insensitive name match.
+  useEffect(() => {
+    if (!lead) return;
+
+    let matched: GarageOption | undefined;
+
+    if (lead.garageId && garageList.length > 0) {
+      matched = garageList.find(g => g.id === lead.garageId);
+    }
+
+    if (!matched && lead.garageAssigned && garageList.length > 0) {
+      const needle = lead.garageAssigned.trim().toLowerCase();
+      matched = garageList.find(g => g.name.trim().toLowerCase() === needle);
+    }
+
+    if (matched) {
+      setSelectedGarageId(matched.id);
+      setSelectedGarageName(matched.name);
+    } else if (lead.garageAssigned) {
+      setSelectedGarageName(lead.garageAssigned);
+    }
+  }, [lead, garageList]);
+
   if (!isOpen || !lead) return null;
+
+  const handleGarageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const id = e.target.value;
+    const garage = garageList.find(g => g.id === id);
+    setSelectedGarageId(id);
+    setSelectedGarageName(garage?.name || '');
+  };
 
   const handleAddItem = () => {
     setLineItems(prev => [
@@ -69,6 +122,7 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
     setLineItems(prev => prev.map((item, i) => {
       if (i === index) {
         const updated = { ...item, [field]: value };
+        // Keep split percentages complementary when editing either side
         if (field === 'mechhelpPct') {
           updated.garagePct = Math.max(0, 100 - Number(value));
         } else if (field === 'garagePct') {
@@ -80,7 +134,11 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
     }));
   };
 
-  const runningTotal = lineItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  // grossAmount = sum of line item amounts (pre-discount, what was billed to each item)
+  const grossAmount = lineItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const discountVal = Math.max(0, Number(discountStr) || 0);
+  // runningTotal = what the customer actually pays (post-discount)
+  const runningTotal = grossAmount - discountVal;
 
   const handleSave = async () => {
     try {
@@ -88,21 +146,25 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
       setIsSaving(true);
 
       // Validation
+      if (!selectedGarageId) {
+        throw new Error('Please select a garage before completing this booking.');
+      }
       if (lineItems.some(item => !item.name.trim())) {
         throw new Error('All line items must have a name.');
       }
       if (lineItems.some(item => isNaN(Number(item.amount)) || Number(item.amount) < 0)) {
         throw new Error('All line items must have a valid non-negative amount.');
       }
-
-      // Finalize split values sum to 100
+      if (isNaN(discountVal) || discountVal < 0) {
+        throw new Error('Discount must be a valid non-negative number.');
+      }
       lineItems.forEach((item, idx) => {
         if (item.splitEnabled && (item.mechhelpPct + item.garagePct !== 100)) {
           throw new Error(`Line item #${idx + 1} split percentages must sum to 100%.`);
         }
       });
 
-      // Map line items to format expected by API
+      // Map line items — splitEnabled OFF → 100% garage, 0% MechHelp
       const formattedItems = lineItems.map(item => ({
         name: item.name,
         amount: Number(item.amount) || 0,
@@ -111,11 +173,11 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
         garagePct: item.splitEnabled ? item.garagePct : 100
       }));
 
-      await finalizeBilling(lead.id, formattedItems, paidTo);
+      // Pass pre-resolved garageId and garageName + discount so finalize processes everything cleanly
+      await finalizeBilling(lead.id, formattedItems, paidTo, selectedGarageId, selectedGarageName, discountVal);
       onClose();
     } catch (err: any) {
       console.error(err);
-      // The API returns actionable error messages (e.g. garage name mismatch) — surface them as-is
       setError(err.message || 'Failed to complete booking. Please try again.');
     } finally {
       setIsSaving(false);
@@ -124,7 +186,7 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content animate-fade-in" style={{ maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
+      <div className="modal-content surface-panel animate-fade-in" style={{ maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
         <div className="modal-header">
           <h2>Mark Booking Completed</h2>
           <button onClick={onClose} className="btn-icon" disabled={isSaving}>
@@ -157,7 +219,20 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
               </div>
               <div>
                 <label className="form-label" style={{ marginBottom: '0.25rem' }}>Garage</label>
-                <input type="text" className="form-input" value={garageAssigned} onChange={e => setGarageAssigned(e.target.value)} disabled={isSaving} />
+                <select
+                  className="form-select"
+                  value={selectedGarageId}
+                  onChange={handleGarageChange}
+                  disabled={isSaving || garageListLoading}
+                >
+                  <option value="">{garageListLoading ? 'Loading...' : 'Select Garage...'}</option>
+                  {selectedGarageName && !garageList.some(g => g.id === selectedGarageId || g.name === selectedGarageName) && (
+                    <option value={selectedGarageId || selectedGarageName}>{selectedGarageName} (Archived)</option>
+                  )}
+                  {garageList.map(g => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="form-label" style={{ marginBottom: '0.25rem' }}>Booking Date</label>
@@ -180,39 +255,39 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
                 <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-secondary)' }}>
                   <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                     <div style={{ flex: 2 }}>
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        placeholder="Item name (e.g. Engine Oil)" 
-                        value={item.name} 
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Item name (e.g. Engine Oil)"
+                        value={item.name}
                         onChange={e => handleItemChange(idx, 'name', e.target.value)}
-                        disabled={isSaving} 
+                        disabled={isSaving}
                       />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <input 
-                        type="number" 
-                        className="form-input" 
-                        placeholder="Amount (₹)" 
-                        value={item.amount} 
+                      <input
+                        type="number"
+                        className="form-input"
+                        placeholder="Amount (₹)"
+                        value={item.amount}
                         onChange={e => handleItemChange(idx, 'amount', e.target.value)}
-                        disabled={isSaving} 
+                        disabled={isSaving}
                       />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', whiteSpace: 'nowrap' }}>
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         id={`split-${idx}`}
-                        checked={item.splitEnabled} 
+                        checked={item.splitEnabled}
                         onChange={e => handleItemChange(idx, 'splitEnabled', e.target.checked)}
-                        disabled={isSaving} 
+                        disabled={isSaving}
                         style={{ cursor: 'pointer', width: '16px', height: '16px' }}
                       />
                       <label htmlFor={`split-${idx}`} style={{ fontSize: '0.75rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>Split (80/20)</label>
                     </div>
-                    <button 
-                      type="button" 
-                      className="btn-icon" 
+                    <button
+                      type="button"
+                      className="btn-icon"
                       onClick={() => handleRemoveItem(idx)}
                       disabled={isSaving || lineItems.length === 1}
                       style={{ color: 'var(--danger)' }}
@@ -221,11 +296,12 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
                     </button>
                   </div>
 
-                  {item.splitEnabled && (
+                  {/* Live split breakdown — always recalculates on amount/toggle change */}
+                  {item.splitEnabled ? (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.25rem' }}>
                       {!item.showPctEdit ? (
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           onClick={() => handleItemChange(idx, 'showPctEdit', true)}
                           style={{ background: 'none', border: 'none', color: 'var(--info)', fontSize: '0.75rem', cursor: 'pointer', textDecoration: 'underline' }}
                         >
@@ -234,29 +310,29 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%' }}>
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>MechHelp %:</span>
-                          <input 
-                            type="number" 
-                            className="form-input" 
-                            style={{ width: '60px', padding: '0.25rem' }} 
-                            value={item.mechhelpPct} 
-                            onChange={e => handleItemChange(idx, 'mechhelpPct', Number(e.target.value))} 
+                          <input
+                            type="number"
+                            className="form-input"
+                            style={{ width: '60px', padding: '0.25rem' }}
+                            value={item.mechhelpPct}
+                            onChange={e => handleItemChange(idx, 'mechhelpPct', Number(e.target.value))}
                             disabled={isSaving}
                             max={100}
                             min={0}
                           />
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Garage %:</span>
-                          <input 
-                            type="number" 
-                            className="form-input" 
-                            style={{ width: '60px', padding: '0.25rem' }} 
-                            value={item.garagePct} 
-                            onChange={e => handleItemChange(idx, 'garagePct', Number(e.target.value))} 
+                          <input
+                            type="number"
+                            className="form-input"
+                            style={{ width: '60px', padding: '0.25rem' }}
+                            value={item.garagePct}
+                            onChange={e => handleItemChange(idx, 'garagePct', Number(e.target.value))}
                             disabled={isSaving}
                             max={100}
                             min={0}
                           />
-                          <button 
-                            type="button" 
+                          <button
+                            type="button"
                             onClick={() => handleItemChange(idx, 'showPctEdit', false)}
                             style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', cursor: 'pointer' }}
                           >
@@ -264,20 +340,47 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
                           </button>
                         </div>
                       )}
-                      
+
                       {!item.showPctEdit && (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                           MechHelp: ₹{((Number(item.amount) || 0) * item.mechhelpPct / 100).toFixed(2)} | Garage: ₹{((Number(item.amount) || 0) * item.garagePct / 100).toFixed(2)}
                         </span>
                       )}
                     </div>
+                  ) : (
+                    /* Split OFF → 100% goes to garage, 0% to MechHelp */
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                      No split — full ₹{(Number(item.amount) || 0).toFixed(2)} goes to Garage
+                    </span>
                   )}
                 </div>
               ))}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.25rem', padding: '0.75rem 1rem', borderRadius: '8px', backgroundColor: 'var(--bg-tertiary)' }}>
-              <strong>Running Total:</strong>
+            {/* Discount — absorbed 100% by MechHelp */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '1.25rem', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px dashed var(--border-light)', backgroundColor: 'var(--bg-secondary)' }}>
+              <div style={{ flex: 1 }}>
+                <label className="form-label" style={{ marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span>Discount (₹)</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 500, background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-light)' }}>absorbed by MechHelp</span>
+                </label>
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="0"
+                  min={0}
+                  value={discountStr}
+                  onChange={e => setDiscountStr(e.target.value)}
+                  disabled={isSaving}
+                />
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', maxWidth: '220px', margin: 0 }}>
+                💡 Discount reduces MechHelp's share only — the garage's entitlement stays the same.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', padding: '0.75rem 1rem', borderRadius: '8px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-light)' }}>
+              <strong>Running Total (charged to customer):</strong>
               <strong style={{ fontSize: '1.25rem', color: 'var(--accent-primary)' }}>₹{runningTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
             </div>
           </div>
@@ -286,8 +389,8 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
           <div style={{ marginBottom: '1.5rem' }}>
             <h3 style={{ fontSize: '1rem', marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>3. Who Received Payment?</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '0.75rem' }}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className={`btn ${paidTo === 'garage' ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setPaidTo('garage')}
                 disabled={isSaving}
@@ -295,8 +398,8 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
               >
                 Garage
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className={`btn ${paidTo === 'mechhelp' ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setPaidTo('mechhelp')}
                 disabled={isSaving}
@@ -305,14 +408,14 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
                 MechHelp
               </button>
             </div>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-              {paidTo === 'garage' 
-                ? "💡 Garage collected payment directly from the customer." 
-                : "💡 Customer paid MechHelp directly."}
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+              {paidTo === 'garage'
+                ? '💡 Garage collected payment directly from the customer.'
+                : '💡 Customer paid MechHelp directly.'}
             </p>
           </div>
 
-          {/* Modal Footer Actions */}
+          {/* Footer Actions */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-light)' }}>
             <button type="button" className="btn btn-secondary" onClick={onClose} disabled={isSaving}>
               Cancel

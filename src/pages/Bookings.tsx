@@ -228,6 +228,7 @@ export const Bookings: React.FC = () => {
                         currentStatus={lead.leadType}
                         onStatusChange={handleStatusChange}
                         disabled={deletingId === lead.id}
+                        billingFinalized={lead.leadType === 'Completed'}
                       />
                       
                       {!lead.garageNotified && isConfirmed && (
@@ -263,7 +264,7 @@ export const Bookings: React.FC = () => {
                             Mark Notified
                           </button>
                         )}
-                        {lead.garageNotified && isConfirmed && (
+                        {lead.garageNotified && isConfirmed && lead.leadType !== 'Completed' && (
                           <button 
                             type="button"
                             className="btn btn-sm flex items-center justify-center gap-1"

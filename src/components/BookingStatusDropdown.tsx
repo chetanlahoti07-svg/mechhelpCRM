@@ -55,13 +55,23 @@ interface Props {
   currentStatus: LeadType;
   onStatusChange: (leadId: string, newStatus: LeadType) => Promise<void>;
   disabled?: boolean;
+  /** When true, billing is done — render a static non-interactive "Completed" badge. */
+  billingFinalized?: boolean;
 }
+
+/**
+ * Options that can be selected via this dropdown.
+ * "Completed" is intentionally excluded — it is set exclusively through the
+ * bill-entry modal (CompletedModal) so the billing flow is never bypassed.
+ */
+const SELECTABLE_OPTIONS = BOOKING_STATUS_OPTIONS.filter(o => o.value !== 'Completed');
 
 export const BookingStatusDropdown: React.FC<Props> = ({
   leadId,
   currentStatus,
   onStatusChange,
   disabled = false,
+  billingFinalized = false,
 }) => {
   const [optimisticStatus, setOptimisticStatus] = useState<LeadType>(currentStatus);
   const [isOpen, setIsOpen] = useState(false);
@@ -124,6 +134,23 @@ export const BookingStatusDropdown: React.FC<Props> = ({
 
   const config = getStatusConfig(optimisticStatus);
 
+  // ── Static badge: billing is done, nothing left to action ──────────────────
+  if (billingFinalized) {
+    const completedConfig = getStatusConfig('Completed');
+    return (
+      <div className="booking-status-wrap">
+        <span
+          className={`booking-status-trigger ${completedConfig.badgeClass}`}
+          aria-label="Billing finalised — booking completed"
+          title="Billing has already been finalized for this booking"
+          style={{ cursor: 'default', userSelect: 'none', pointerEvents: 'none', opacity: 0.85 }}
+        >
+          {completedConfig.label}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="booking-status-wrap" ref={wrapRef}>
       <button
@@ -164,7 +191,7 @@ export const BookingStatusDropdown: React.FC<Props> = ({
           role="listbox"
           aria-label="Select booking status"
         >
-          {BOOKING_STATUS_OPTIONS.map(({ value, config: optConfig }) => (
+          {SELECTABLE_OPTIONS.map(({ value, config: optConfig }) => (
             <button
               key={value}
               type="button"

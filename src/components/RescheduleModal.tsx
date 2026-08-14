@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Lead, RescheduleHistoryEntry } from '../types';
 import { X, Calendar, MapPin, Car, User, Phone } from 'lucide-react';
-import { GARAGES } from '../data/seed';
+import { useLeadContext } from '../store/LeadContext';
 
 interface RescheduleModalProps {
   isOpen: boolean;
@@ -11,6 +11,7 @@ interface RescheduleModalProps {
 }
 
 export const RescheduleModal: React.FC<RescheduleModalProps> = ({ isOpen, onClose, lead, onSave }) => {
+  const { getGarageList } = useLeadContext();
   const [newDate, setNewDate] = useState('');
   const [newTime, setNewTime] = useState('');
   const [newGarage, setNewGarage] = useState('');
@@ -18,6 +19,7 @@ export const RescheduleModal: React.FC<RescheduleModalProps> = ({ isOpen, onClos
   const [remarks, setRemarks] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [garageList, setGarageList] = useState<{ id: string; name: string }[]>([]);
 
   const currentDateTime = lead?.bookingDateTime ? new Date(lead.bookingDateTime) : null;
   const currentDate = currentDateTime ? currentDateTime.toISOString().split('T')[0] : '';
@@ -31,6 +33,9 @@ export const RescheduleModal: React.FC<RescheduleModalProps> = ({ isOpen, onClos
       setReason('');
       setRemarks('');
       setError('');
+      getGarageList()
+        .then(list => setGarageList(list))
+        .catch(err => console.error('Failed to load garages in RescheduleModal:', err));
     }
   }, [isOpen, lead]);
 
@@ -85,7 +90,7 @@ export const RescheduleModal: React.FC<RescheduleModalProps> = ({ isOpen, onClos
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content animate-fade-in" style={{ maxWidth: '600px' }}>
+      <div className="modal-content surface-panel animate-fade-in" style={{ maxWidth: '600px' }}>
         <div className="modal-header">
           <h2>Reschedule Booking</h2>
           <button onClick={onClose} className="btn-icon"><X size={20} /></button>
@@ -156,7 +161,10 @@ export const RescheduleModal: React.FC<RescheduleModalProps> = ({ isOpen, onClos
                 onChange={(e) => setNewGarage(e.target.value)}
               >
                 <option value="">Keep current garage...</option>
-                {GARAGES.map(g => (
+                {newGarage && !garageList.some(g => g.name === newGarage) && (
+                  <option value={newGarage}>{newGarage} (Archived)</option>
+                )}
+                {garageList.map(g => (
                   <option key={g.id} value={g.name}>{g.name}</option>
                 ))}
               </select>

@@ -62,6 +62,7 @@ CREATE TABLE leads (
   last_contacted_date TIMESTAMPTZ,
   is_vip BOOLEAN DEFAULT FALSE,
   whatsapp_broadcast BOOLEAN DEFAULT FALSE,
+  retarget_time_slot TEXT DEFAULT NULL,
   notes TEXT,
   created_date TIMESTAMPTZ DEFAULT NOW()
 );

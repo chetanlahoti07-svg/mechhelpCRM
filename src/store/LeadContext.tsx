@@ -12,9 +12,15 @@ interface LeadContextType {
   addSujalItem: (item: Omit<SujalCallListItem, 'id' | 'dateAdded'>) => Promise<void>;
   updateSujalItem: (item: SujalCallListItem) => Promise<void>;
   deleteSujalItem: (id: string) => Promise<void>;
-  finalizeBilling: (bookingId: string, lineItems: any[], paidTo: 'garage' | 'mechhelp') => Promise<any>;
+  finalizeBilling: (bookingId: string, lineItems: any[], paidTo: 'garage' | 'mechhelp', garageId?: string, garageName?: string, discount?: number) => Promise<any>;
+  finalizeDirectBilling: (customerName: string, carBrand: string, carModel: string, bookingDate: string, garageId: string, garageName: string, lineItems: any[], paidTo: 'garage' | 'mechhelp', discount?: number) => Promise<any>;
+  getGarageList: () => Promise<{ id: string; name: string }[]>;
+  addGarage: (name: string) => Promise<{ id: string; name: string }>;
+  removeGarage: (garageId: string, currentBalance: number) => Promise<void>;
+  recordPayment: (garageId: string, amount: number, direction: 'mechhelp_to_garage' | 'garage_to_mechhelp', currentBalance?: number) => Promise<any>;
   getGaragesWithBalances: () => Promise<any[]>;
   getGarageSettlements: (garageId: string) => Promise<any>;
+  getAllSettlements: () => Promise<any>;
   settleGarage: (garageId: string) => Promise<any>;
   isLoading: boolean;
   isMigrating: boolean;
@@ -144,10 +150,32 @@ export const LeadProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const finalizeBilling = async (bookingId: string, lineItems: any[], paidTo: 'garage' | 'mechhelp') => {
-    const res = await SettlementService.finalizeBilling(bookingId, lineItems, paidTo);
+  const finalizeBilling = async (bookingId: string, lineItems: any[], paidTo: 'garage' | 'mechhelp', garageId?: string, garageName?: string, discount?: number) => {
+    const res = await SettlementService.finalizeBilling(bookingId, lineItems, paidTo, garageId, garageName, discount);
     await fetchAllData();
     return res;
+  };
+
+  const finalizeDirectBilling = async (customerName: string, carBrand: string, carModel: string, bookingDate: string, garageId: string, garageName: string, lineItems: any[], paidTo: 'garage' | 'mechhelp', discount: number = 0) => {
+    const res = await SettlementService.finalizeDirectBilling(customerName, carBrand, carModel, bookingDate, garageId, garageName, lineItems, paidTo, discount);
+    await fetchAllData();
+    return res;
+  };
+
+  const getGarageList = async () => {
+    return SettlementService.getGarageList();
+  };
+
+  const addGarage = async (name: string) => {
+    return SettlementService.addGarage(name);
+  };
+
+  const removeGarage = async (garageId: string, currentBalance: number) => {
+    return SettlementService.removeGarage(garageId, currentBalance);
+  };
+
+  const recordPayment = async (garageId: string, amount: number, direction: 'mechhelp_to_garage' | 'garage_to_mechhelp', currentBalance?: number) => {
+    return SettlementService.recordPayment(garageId, amount, direction, currentBalance);
   };
 
   const getGaragesWithBalances = async () => {
@@ -164,8 +192,12 @@ export const LeadProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return res;
   };
 
+  const getAllSettlements = async () => {
+    return SettlementService.getAllSettlements();
+  };
+
   return (
-    <LeadContext.Provider value={{ leads, sujalList, addLead, updateLead, deleteLead, addSujalItem, updateSujalItem, deleteSujalItem, finalizeBilling, getGaragesWithBalances, getGarageSettlements, settleGarage, isLoading, isMigrating }}>
+    <LeadContext.Provider value={{ leads, sujalList, addLead, updateLead, deleteLead, addSujalItem, updateSujalItem, deleteSujalItem, finalizeBilling, finalizeDirectBilling, getGarageList, addGarage, removeGarage, recordPayment, getGaragesWithBalances, getGarageSettlements, getAllSettlements, settleGarage, isLoading, isMigrating }}>
       {children}
     </LeadContext.Provider>
   );

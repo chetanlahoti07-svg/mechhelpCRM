@@ -16,7 +16,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { booking_id, line_items, paid_to } = req.body;
+  const { booking_id, line_items, paid_to, discount } = req.body;
 
   if (!booking_id) {
     return res.status(400).json({ error: 'Missing booking_id' });
@@ -85,7 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Billing is already finalized for this booking.' });
     }
 
-    // 4. Compute totals
+    // 4. Compute totals (including discount absorbed by MechHelp)
     const calcResult = calculateSettlement(
       line_items.map((item: any) => ({
         name: item.name,
@@ -94,7 +94,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         mechhelpPct: Number(item.mechhelpPct) ?? 20,
         garagePct: Number(item.garagePct) ?? 80,
       })),
-      paid_to
+      paid_to,
+      Number(discount) || 0
     );
 
     // 5. Create booking_billing
@@ -105,6 +106,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         lead_id: booking_id,
         garage_id: resolvedGarageId,
         total_amount: calcResult.totalAmount,
+        discount: calcResult.discount,
         paid_to,
         status: 'finalized',
       })
@@ -131,9 +133,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (lineItemsError) throw lineItemsError;
     }
 
-    // 7. Create garage_settlements row if total amount > 0
-    //    (skip for ₹0 / warranty / free-service bookings — nothing to settle)
-    if (calcResult.totalAmount > 0) {
+    // 7. Create garage_settlements row if gross amount > 0
+    //    (skip truly ₹0 / warranty / free-service bookings — nothing to settle)
+    //    Uses grossAmount (pre-discount) because the garage is owed its share regardless of discount.
+    if (calcResult.grossAmount > 0) {
       const { error: settlementError } = await supabase
         .from('garage_settlements')
         .insert({

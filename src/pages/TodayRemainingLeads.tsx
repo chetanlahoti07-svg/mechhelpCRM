@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useLeadContext } from '../store/LeadContext';
 import { AddLeadModal } from '../components/AddLeadModal';
-import { Edit, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Edit, Search, Sun, Moon } from 'lucide-react';
 import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
 import { isBefore, isToday, startOfToday } from 'date-fns';
 import type { Lead } from '../types';
@@ -17,27 +17,19 @@ export const TodayRemainingLeads: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
   
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | undefined>(undefined);
 
   const today = startOfToday();
 
-  const filteredData = useMemo(() => {
-    // Filter strictly for Retarget stage + nextFollowUpDate = today's actual current date
-    let data = leads.filter(l => 
-      l.leadType === 'Retarget' && 
-      isToday(parseDate(l.nextFollowUpDate))
-    );
+  // Filter leads due today
+  const allTodayLeads = useMemo(() => {
+    let data = leads.filter(l => isToday(parseDate(l.nextFollowUpDate)));
 
-    // Apply priority filter if selected
     if (filterPriority) {
       data = data.filter(l => l.priority === filterPriority);
     }
 
-    // Apply search
     if (searchTerm) {
       const lower = searchTerm.toLowerCase();
       data = data.filter(l => 
@@ -49,53 +41,35 @@ export const TodayRemainingLeads: React.FC = () => {
       );
     }
 
-    // Sort by creation date descending
     return data.sort((a, b) => new Date(b.createdDate || 0).getTime() - new Date(a.createdDate || 0).getTime());
   }, [leads, filterPriority, searchTerm]);
 
-  // Pagination
-  const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
-  const currentData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  // Group into Morning and Evening.
+  // Untagged leads (retargetTimeSlot is null/undefined) default to Morning.
+  const eveningLeads = useMemo(() => {
+    return allTodayLeads.filter(l => l.retargetTimeSlot === 'evening');
+  }, [allTodayLeads]);
+
+  const morningLeads = useMemo(() => {
+    return allTodayLeads.filter(l => l.retargetTimeSlot !== 'evening');
+  }, [allTodayLeads]);
 
   const handleEdit = (lead: Lead) => {
     setSelectedLead(lead);
     setIsModalOpen(true);
   };
 
-  return (
-    <div className="all-leads animate-fade-in">
-      <div className="dashboard-header" style={{ marginBottom: '2rem' }}>
-        <div>
-          <h1>Today's Remainder</h1>
-          <p>Retarget leads scheduled for follow-up today</p>
+  const renderTableSection = (title: string, subtitle: string, icon: React.ReactNode, sectionLeads: Lead[], badgeClass: string) => (
+    <div className="surface-panel" style={{ padding: '1.5rem', marginBottom: '2rem', borderRadius: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {icon}
+          <h2 style={{ fontSize: '1.15rem', fontWeight: 600, margin: 0 }}>{title}</h2>
+          <span className={`badge ${badgeClass}`} style={{ marginLeft: '0.5rem' }}>
+            {sectionLeads.length} {sectionLeads.length === 1 ? 'lead' : 'leads'}
+          </span>
         </div>
-      </div>
-
-      <div className="filters surface-panel" style={{ padding: '1.5rem', marginBottom: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', gap: '1rem', flex: 1, minWidth: '300px' }}>
-          <div style={{ position: 'relative', flex: 1, maxWidth: '400px' }}>
-            <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            <input 
-              type="text" 
-              className="form-input" 
-              placeholder="Search by Name, Identifier, or Car..." 
-              value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-              style={{ paddingLeft: '2.5rem' }}
-            />
-          </div>
-
-          <select className="form-select" style={{ width: 'auto' }} value={filterPriority} onChange={e => { setFilterPriority(e.target.value); setCurrentPage(1); }}>
-            <option value="">All Priorities</option>
-            <option value="High">High</option>
-            <option value="Medium">Medium</option>
-            <option value="Low">Low</option>
-          </select>
-        </div>
-        
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-          Showing {filteredData.length} remaining leads
-        </div>
+        <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{subtitle}</p>
       </div>
 
       <div className="table-container">
@@ -105,13 +79,13 @@ export const TodayRemainingLeads: React.FC = () => {
               <th>Name & Priority</th>
               <th>Identifier (Source)</th>
               <th>Car</th>
-              <th>Stage</th>
+              <th>Stage / Slot</th>
               <th>Next Follow-Up</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {currentData.map(lead => (
+            {sectionLeads.map(lead => (
               <tr key={lead.id}>
                 <td>
                   <strong>{lead.customerName || 'Unknown'}</strong>
@@ -122,7 +96,11 @@ export const TodayRemainingLeads: React.FC = () => {
                 </td>
                 <td>{lead.identifier} <br/><small className="text-muted">({lead.leadSource})</small></td>
                 <td>{lead.carBrand} {lead.carModel}</td>
-                <td><span className="badge badge-gray">{lead.leadType}</span></td>
+                <td>
+                  <span className="badge badge-gray" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                    {lead.retargetTimeSlot === 'morning' ? '☀️ Morning' : lead.retargetTimeSlot === 'evening' ? '🌙 Evening' : lead.leadType}
+                  </span>
+                </td>
                 <td>
                   <span className={isBefore(new Date(lead.nextFollowUpDate), today) && !['Booked', 'Completed', 'Lost'].includes(lead.leadType) ? 'text-danger font-bold' : ''}>
                     {lead.nextFollowUpDate}
@@ -141,36 +119,70 @@ export const TodayRemainingLeads: React.FC = () => {
                 </td>
               </tr>
             ))}
-            {currentData.length === 0 && (
-              <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem' }}>No remaining retarget leads for today.</td></tr>
+            {sectionLeads.length === 0 && (
+              <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No leads in this section for today.</td></tr>
             )}
           </tbody>
         </table>
-        
-        {totalPages > 1 && (
-          <div style={{ padding: '1rem', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-              Page {currentPage} of {totalPages}
-            </span>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button 
-                className="btn btn-secondary btn-icon" 
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(prev => prev - 1)}
-              >
-                <ChevronLeft size={18} />
-              </button>
-              <button 
-                className="btn btn-secondary btn-icon" 
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(prev => prev + 1)}
-              >
-                <ChevronRight size={18} />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
+    </div>
+  );
+
+  return (
+    <div className="all-leads animate-fade-in">
+      <div className="dashboard-header" style={{ marginBottom: '2rem' }}>
+        <div>
+          <h1>Today's Remainder</h1>
+          <p>Leads scheduled for follow-up today, split by morning and evening callback preference</p>
+        </div>
+      </div>
+
+      <div className="filters surface-panel" style={{ padding: '1.5rem', marginBottom: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: '1rem', flex: 1, minWidth: '300px' }}>
+          <div style={{ position: 'relative', flex: 1, maxWidth: '400px' }}>
+            <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input 
+              type="text" 
+              className="form-input" 
+              placeholder="Search by Name, Identifier, or Car..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ paddingLeft: '2.5rem' }}
+            />
+          </div>
+
+          <select className="form-select" style={{ width: 'auto' }} value={filterPriority} onChange={e => setFilterPriority(e.target.value)}>
+            <option value="">All Priorities</option>
+            <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
+          </select>
+        </div>
+        
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+          Total {allTodayLeads.length} reminders today ({morningLeads.length} Morning · {eveningLeads.length} Evening)
+        </div>
+      </div>
+
+      {/* Morning Section */}
+      {renderTableSection(
+        "Today's Reminder: Morning",
+        "Retarget callbacks preferred during morning hours",
+        <Sun size={20} className="text-warning" />,
+        morningLeads,
+        "badge-yellow"
+      )}
+
+      {/* Evening Section */}
+      {renderTableSection(
+        "Today's Reminder: Evening",
+        "Retarget callbacks preferred during evening hours",
+        <Moon size={20} className="text-primary" />,
+        eveningLeads,
+        "badge-purple"
+      )}
+
+
       
       {isModalOpen && (
         <AddLeadModal 

@@ -8,7 +8,7 @@
   
   --text-primary: #111827;
   --text-secondary: #4b5563;
-  --text-muted: #9ca3af;
+  --text-muted: #6b7280;
   
   --accent-primary: #000000;
   --accent-hover: #1f2937;
@@ -100,35 +100,44 @@ body {
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
-  transition: all var(--transition-fast);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
 }
 
 .surface-panel:hover {
   box-shadow: var(--shadow-md);
-  border-color: var(--text-muted);
+  border-color: var(--border-focus);
 }
 
 .surface-header {
-  background: rgba(var(--bg-primary), 0.8);
+  background: rgba(var(--bg-primary), 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-light);
   transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
-/* Typography */
+/* Typography Scale */
 h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
   color: var(--text-primary);
   letter-spacing: -0.02em;
 }
 
-h1 { font-size: 1.875rem; }
-h2 { font-size: 1.5rem; }
-h3 { font-size: 1.25rem; }
+h1 { font-size: 1.75rem; line-height: 1.25; }
+h2 { font-size: 1.35rem; line-height: 1.3; }
+h3 { font-size: 1.125rem; line-height: 1.35; }
 
 p {
   color: var(--text-secondary);
+}
+
+/* Label Caps Utility for small metadata headers (e.g. IDENTIFIER, CAR, STAGE) */
+.label-caps {
+  font-size: 0.725rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
 }
 
 /* Base Layout */
@@ -293,6 +302,78 @@ p {
 
 .form-input::placeholder, .form-textarea::placeholder {
   color: var(--text-muted);
+}
+
+.form-input:disabled, .form-select:disabled, .form-textarea:disabled {
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  opacity: 0.85;
+  cursor: not-allowed;
+  border-color: var(--border-light);
+}
+
+/* Global Modal System */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal-content {
+  width: 100%;
+  max-width: 600px;
+  max-height: calc(100vh - 2rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
+}
+
+.modal-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+  background-color: var(--bg-primary);
+}
+
+.modal-header h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  background-color: var(--bg-primary);
+}
+
+.modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border-light);
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  background: var(--bg-secondary);
+  flex-shrink: 0;
 }
 
 .form-checkbox {

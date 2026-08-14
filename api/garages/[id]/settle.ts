@@ -28,7 +28,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const now = new Date().toISOString();
+    const { amount, direction, currentBalance } = req.body || {};
 
+    if (amount !== undefined && amount !== null) {
+      const paymentAmount = Number(amount);
+      if (isNaN(paymentAmount) || paymentAmount <= 0) {
+        return res.status(400).json({ error: 'Invalid payment amount' });
+      }
+
+      const signedAmount = Math.abs(paymentAmount);
+      // If direction is mechhelp_to_garage (we pay garage), net_amount is +amount (reduces what we owe)
+      // If direction is garage_to_mechhelp (garage pays us), net_amount is -amount (reduces what garage owes)
+      let netAmount = 0;
+      if (direction === 'mechhelp_to_garage') {
+        netAmount = signedAmount;
+      } else if (direction === 'garage_to_mechhelp') {
+        netAmount = -signedAmount;
+      } else {
+        // Fallback to balance sign inference if direction is omitted
+        const bal = Number(currentBalance) || 0;
+        netAmount = bal > 0 ? -signedAmount : signedAmount;
+      }
+
+      const { data, error } = await supabase
+        .from('garage_settlements')
+        .insert({
+          garage_id: garageId,
+          billing_id: null,
+          lead_id: null,
+          net_amount: netAmount,
+          settled: true,
+          settled_at: now,
+        })
+        .select('*')
+        .single();
+
+      if (error) throw error;
+
+      return res.status(200).json({
+        success: true,
+        message: `Successfully recorded payment of ₹${signedAmount}.`,
+        settlement: data,
+      });
+    }
+
+    // Default: full settlement of all unsettled rows
     const { data, error } = await supabase
       .from('garage_settlements')
       .update({

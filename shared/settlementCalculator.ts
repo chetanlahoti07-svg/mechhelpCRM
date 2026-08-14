@@ -7,7 +7,11 @@ export interface LineItemInput {
 }
 
 export interface SettlementCalculationResult {
+  /** Sum of all line item amounts before the discount (gross charged). */
+  grossAmount: number;
+  /** Amount the customer actually pays: grossAmount − discount. */
   totalAmount: number;
+  discount: number;
   totalMechhelpEntitled: number;
   totalGarageEntitled: number;
   netAmount: number;
@@ -15,22 +19,31 @@ export interface SettlementCalculationResult {
 
 /**
  * Calculates the split amounts and net balance for a booking settlement.
- * 
- * - If paid_to is 'garage', the garage collected payment and owes MechHelp the MechHelp portion (net_amount positive).
- * - If paid_to is 'mechhelp', MechHelp collected payment and owes the garage the garage portion (net_amount negative).
- * - Split disabled items allocate 100% of the amount to the garage.
+ *
+ * Key semantics:
+ * - `grossAmount`           = sum of line item amounts (pre-discount)
+ * - `totalAmount`           = grossAmount − discount  (what the customer pays)
+ * - `totalGarageEntitled`   = garage's split share from GROSS amounts (unaffected by discount)
+ * - `totalMechhelpEntitled` = mechhelp's split share from GROSS amounts, THEN minus discount
+ *
+ * Discount is absorbed 100% by MechHelp:
+ *   → Customer pays less; Garage still gets its full share; MechHelp absorbs the gap.
+ *
+ * paidTo 'garage'   → garage collected → net_amount = totalMechhelpEntitled (garage owes MechHelp)
+ * paidTo 'mechhelp' → mechhelp collected → net_amount = −totalGarageEntitled (MechHelp owes Garage)
  */
 export function calculateSettlement(
   lineItems: LineItemInput[],
-  paidTo: 'garage' | 'mechhelp'
+  paidTo: 'garage' | 'mechhelp',
+  discount: number = 0
 ): SettlementCalculationResult {
-  let totalAmount = 0;
+  let grossAmount = 0;
   let totalMechhelpEntitled = 0;
   let totalGarageEntitled = 0;
 
   for (const item of lineItems) {
     const amount = Number(item.amount) || 0;
-    totalAmount += amount;
+    grossAmount += amount;
 
     if (item.splitEnabled) {
       const mhPct = Number(item.mechhelpPct) ?? 20;
@@ -38,9 +51,15 @@ export function calculateSettlement(
       totalMechhelpEntitled += amount * (mhPct / 100);
       totalGarageEntitled += amount * (gPct / 100);
     } else {
+      // Split disabled: 100% of this item goes to the garage
       totalGarageEntitled += amount;
     }
   }
+
+  // Discount: reduces what the customer pays AND absorbs into MechHelp's share
+  const sanitizedDiscount = Math.max(0, Number(discount) || 0);
+  const totalAmount = grossAmount - sanitizedDiscount;   // customer-facing
+  totalMechhelpEntitled -= sanitizedDiscount;            // MechHelp eats the loss
 
   let netAmount = 0;
   if (paidTo === 'garage') {
@@ -49,9 +68,11 @@ export function calculateSettlement(
     netAmount = -totalGarageEntitled;
   }
 
-  // Round values to 2 decimal places to avoid floating point errors
+  // Round to 2 decimal places to avoid floating-point noise
   return {
+    grossAmount: Math.round(grossAmount * 100) / 100,
     totalAmount: Math.round(totalAmount * 100) / 100,
+    discount: Math.round(sanitizedDiscount * 100) / 100,
     totalMechhelpEntitled: Math.round(totalMechhelpEntitled * 100) / 100,
     totalGarageEntitled: Math.round(totalGarageEntitled * 100) / 100,
     netAmount: Math.round(netAmount * 100) / 100,

@@ -21,12 +21,14 @@ const mapDbToLead = (row: any): Lead => ({
   leadType: row.lead_type,
   bookingType: row.booking_type,
   garageAssigned: row.garage_assigned,
+  garageId: row.garage_id,
   bookingDateTime: row.booking_date_time,
   garageNotified: row.garage_notified,
   nextFollowUpDate: row.next_follow_up_date,
   lastContactedDate: row.last_contacted_date,
   isVip: row.is_vip,
   whatsappBroadcast: row.whatsapp_broadcast,
+  retargetTimeSlot: row.retarget_time_slot || null,
   notes: row.notes || '',
   createdDate: row.created_date,
   bookingHistory: (row.booking_history || []).map((h: any) => ({
@@ -67,6 +69,7 @@ const mapLeadToDb = (lead: Lead) => ({
   last_contacted_date: lead.lastContactedDate,
   is_vip: lead.isVip,
   whatsapp_broadcast: lead.whatsappBroadcast,
+  retarget_time_slot: lead.retargetTimeSlot || null,
   notes: lead.notes,
   created_date: lead.createdDate
 });
@@ -103,7 +106,16 @@ export const LeadService = {
         .order('created_date', { ascending: false });
         
       if (error) throw error;
-      return (data || []).map(mapDbToLead);
+      
+      const fallbackData = JSON.parse(localStorage.getItem('mechhelp_retarget_fallback') || '{}');
+      return (data || []).map((row: any) => {
+        const lead = mapDbToLead(row);
+        // If DB returned null for retargetTimeSlot, check our local fallback overlay
+        if (!lead.retargetTimeSlot && fallbackData[lead.id]) {
+          lead.retargetTimeSlot = fallbackData[lead.id];
+        }
+        return lead;
+      });
     } else {
       await delay();
       const data = localStorage.getItem(LEADS_KEY);
@@ -148,11 +160,12 @@ export const LeadService = {
         last_contacted_date: lead.lastContactedDate,
         is_vip: lead.isVip,
         whatsapp_broadcast: lead.whatsappBroadcast,
+        retarget_time_slot: lead.retargetTimeSlot || null,
         notes: lead.notes,
         created_date: createdDate
       };
 
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('leads')
         .insert([dbLead])
         .select(`
@@ -161,6 +174,29 @@ export const LeadService = {
           activity_history(*)
         `)
         .single();
+
+      if (error && (error.code === 'PGRST204' || error.message?.includes('retarget_time_slot'))) {
+        delete (dbLead as any).retarget_time_slot;
+        const res = await supabase
+          .from('leads')
+          .insert([dbLead])
+          .select(`
+            *,
+            booking_history(*),
+            activity_history(*)
+          `)
+          .single();
+        data = res.data;
+        error = res.error;
+        
+        // Save to fallback overlay so it survives reloads even if DB column is missing
+        if (data && lead.retargetTimeSlot) {
+          const fallbackData = JSON.parse(localStorage.getItem('mechhelp_retarget_fallback') || '{}');
+          fallbackData[data.id] = lead.retargetTimeSlot;
+          localStorage.setItem('mechhelp_retarget_fallback', JSON.stringify(fallbackData));
+          data.retarget_time_slot = lead.retargetTimeSlot; // Patch memory for immediate return
+        }
+      }
         
       if (error) throw error;
       return mapDbToLead(data);
@@ -194,12 +230,34 @@ export const LeadService = {
       }
 
       // 2. Update the main lead (including garage_id)
-      const dbLead = { ...mapLeadToDb(updatedLead), garage_id: garageId };
-      const { error: leadError } = await supabase
+      let dbLead: any = { ...mapLeadToDb(updatedLead), garage_id: garageId };
+      let { error: leadError } = await supabase
         .from('leads')
         .update(dbLead)
         .eq('id', updatedLead.id);
         
+      if (leadError && (leadError.code === 'PGRST204' || leadError.message?.includes('retarget_time_slot'))) {
+        delete dbLead.retarget_time_slot;
+        const res = await supabase
+          .from('leads')
+          .update(dbLead)
+          .eq('id', updatedLead.id);
+        leadError = res.error;
+        
+        // Save to fallback overlay
+        if (!leadError && updatedLead.retargetTimeSlot) {
+          const fallbackData = JSON.parse(localStorage.getItem('mechhelp_retarget_fallback') || '{}');
+          fallbackData[updatedLead.id] = updatedLead.retargetTimeSlot;
+          localStorage.setItem('mechhelp_retarget_fallback', JSON.stringify(fallbackData));
+        } else if (!leadError && !updatedLead.retargetTimeSlot) {
+          const fallbackData = JSON.parse(localStorage.getItem('mechhelp_retarget_fallback') || '{}');
+          if (fallbackData[updatedLead.id]) {
+            delete fallbackData[updatedLead.id];
+            localStorage.setItem('mechhelp_retarget_fallback', JSON.stringify(fallbackData));
+          }
+        }
+      }
+
       if (leadError) throw leadError;
 
       // 2. Sync Booking History (delete old and re-insert or use upsert)
@@ -504,43 +562,82 @@ export const MOCK_GARAGES = [
 ];
 
 export const SettlementService = {
+  // Returns plain {id, name}[] for populating dropdowns — active garages only.
+  async getGarageList(): Promise<{ id: string; name: string }[]> {
+    if (useSupabase) {
+      try {
+        const { data, error } = await supabase
+          .from('garages')
+          .select('id, name')
+          .eq('is_active', true)
+          .order('name', { ascending: true });
+        if (error) throw error;
+        return data || [];
+      } catch (e) {
+        // Fallback if is_active column does not exist on Supabase table
+        const { data, error } = await supabase
+          .from('garages')
+          .select('id, name')
+          .order('name', { ascending: true });
+        if (error) throw error;
+        return data || [];
+      }
+    } else {
+      await delay();
+      return MOCK_GARAGES.map(g => ({ id: g.id, name: g.name }));
+    }
+  },
+
   async finalizeBilling(
     bookingId: string,
     lineItems: any[],
-    paidTo: 'garage' | 'mechhelp'
+    paidTo: 'garage' | 'mechhelp',
+    preResolvedGarageId?: string,
+    preResolvedGarageName?: string,
+    discount: number = 0
   ): Promise<any> {
     if (useSupabase) {
-      // 1. Fetch the lead to get garage details
-      const { data: lead, error: leadError } = await supabase
-        .from('leads')
-        .select('id, garage_id, garage_assigned, customer_name')
-        .eq('id', bookingId)
-        .maybeSingle();
+      // 1. Resolve garage_id — use pre-resolved value from dropdown if available,
+      //    otherwise fall back to DB lookup by name (legacy path).
+      let resolvedGarageId: string | null = preResolvedGarageId ?? null;
 
-      if (leadError) throw leadError;
-      if (!lead) throw new Error('Booking not found.');
-
-      // 2. Resolve garage_id — fallback to name lookup if null
-      let resolvedGarageId: string | null = lead.garage_id ?? null;
-
-      if (!resolvedGarageId && lead.garage_assigned) {
-        const { data: garageByName, error: gnErr } = await supabase
-          .from('garages')
-          .select('id')
-          .ilike('name', lead.garage_assigned.trim())
+      if (!resolvedGarageId) {
+        // Legacy fallback: fetch lead and try to resolve garage by name
+        const { data: lead, error: leadError } = await supabase
+          .from('leads')
+          .select('id, garage_id, garage_assigned')
+          .eq('id', bookingId)
           .maybeSingle();
-        if (gnErr) throw gnErr;
-        if (garageByName) {
-          resolvedGarageId = garageByName.id;
-          // Patch garage_id back for future calls
-          await supabase.from('leads').update({ garage_id: resolvedGarageId }).eq('id', bookingId);
+
+        if (leadError) throw leadError;
+        if (!lead) throw new Error('Booking not found.');
+
+        resolvedGarageId = lead.garage_id ?? null;
+
+        if (!resolvedGarageId && lead.garage_assigned) {
+          const { data: garageByName, error: gnErr } = await supabase
+            .from('garages')
+            .select('id')
+            .ilike('name', lead.garage_assigned.trim())
+            .maybeSingle();
+          if (gnErr) throw gnErr;
+          if (garageByName) resolvedGarageId = garageByName.id;
+        }
+
+        if (!resolvedGarageId) {
+          const name = lead.garage_assigned || '(none)';
+          throw new Error(`Booking garage "${name}" could not be matched to a known garage. Please select a garage from the dropdown.`);
         }
       }
 
-      if (!resolvedGarageId) {
-        const name = lead.garage_assigned || '(none)';
-        throw new Error(`Booking garage "${name}" could not be matched to a known garage. Please check the garage name or re-assign the booking before completing it.`);
-      }
+      // 2. Patch garage_id (and name if provided) back onto the lead so future calls are clean
+      await supabase
+        .from('leads')
+        .update({
+          garage_id: resolvedGarageId,
+          ...(preResolvedGarageName ? { garage_assigned: preResolvedGarageName } : {})
+        })
+        .eq('id', bookingId);
 
       // 3. Prevent double billing
       const { data: existingBilling, error: billCheckErr } = await supabase
@@ -551,7 +648,7 @@ export const SettlementService = {
       if (billCheckErr) throw billCheckErr;
       if (existingBilling) throw new Error('Billing is already finalized for this booking.');
 
-      // 4. Compute totals
+      // 4. Compute totals (including discount absorbed by MechHelp)
       const calcResult = calculateSettlement(
         lineItems.map(item => ({
           name: item.name,
@@ -560,20 +657,24 @@ export const SettlementService = {
           mechhelpPct: Number(item.mechhelpPct) ?? 20,
           garagePct: Number(item.garagePct) ?? 80,
         })),
-        paidTo
+        paidTo,
+        discount
       );
 
       // 5. Create booking_billing
+      const billingInsertData: any = {
+        booking_id: bookingId,
+        lead_id: bookingId,
+        garage_id: resolvedGarageId,
+        total_amount: calcResult.totalAmount,
+        discount: calcResult.discount,
+        paid_to: paidTo,
+        status: 'finalized',
+      };
+
       const { data: billing, error: billingErr } = await supabase
         .from('booking_billing')
-        .insert({
-          booking_id: bookingId,
-          lead_id: bookingId,
-          garage_id: resolvedGarageId,
-          total_amount: calcResult.totalAmount,
-          paid_to: paidTo,
-          status: 'finalized',
-        })
+        .insert(billingInsertData)
         .select('*')
         .single();
       if (billingErr) throw billingErr;
@@ -593,8 +694,8 @@ export const SettlementService = {
         if (liErr) throw liErr;
       }
 
-      // 7. Create garage_settlements row if total > 0 (skip ₹0 / free-service bookings)
-      if (calcResult.totalAmount > 0) {
+      // 7. Create garage_settlements row if gross > 0 (skip truly ₹0 / free-service bookings)
+      if (calcResult.grossAmount > 0) {
         const { error: settlErr } = await supabase.from('garage_settlements').insert({
           garage_id: resolvedGarageId,
           billing_id: billing.id,
@@ -646,7 +747,8 @@ export const SettlementService = {
           mechhelpPct: Number(item.mechhelpPct) ?? 20,
           garagePct: Number(item.garagePct) ?? 80,
         })),
-        paidTo
+        paidTo,
+        discount
       );
 
       // Create booking billing
@@ -657,6 +759,7 @@ export const SettlementService = {
         leadId: bookingId,
         garageId: matchedGarage.id,
         totalAmount: calcResult.totalAmount,
+        discount: calcResult.discount,
         paidTo,
         status: 'finalized' as const,
         createdAt: new Date().toISOString(),
@@ -681,7 +784,7 @@ export const SettlementService = {
       const settlementsData = localStorage.getItem(SETTLEMENTS_KEY);
       const settlements: any[] = settlementsData ? JSON.parse(settlementsData) : [];
 
-      if (calcResult.totalAmount > 0) {
+      if (calcResult.grossAmount > 0) {
         const newSettlement = {
           id: uuidv4(),
           garageId: matchedGarage.id,
@@ -711,6 +814,79 @@ export const SettlementService = {
         billing: newBilling,
         calculations: calcResult
       };
+    }
+  },
+
+  // Create billing for a walk-in customer who was never a CRM lead.
+  // Approach: silently create a minimal lead row to satisfy FK constraints,
+  // then delegate to the existing finalizeBilling path unchanged.
+  async finalizeDirectBilling(
+    customerName: string,
+    carBrand: string,
+    carModel: string,
+    bookingDate: string,   // ISO date string e.g. "2024-08-12"
+    garageId: string,
+    garageName: string,
+    lineItems: any[],
+    paidTo: 'garage' | 'mechhelp',
+    discount: number = 0
+  ): Promise<any> {
+    if (useSupabase) {
+      // 1. Create a minimal lead row so FK constraints are satisfied
+      const { data: newLead, error: leadErr } = await supabase
+        .from('leads')
+        .insert({
+          customer_name: customerName || 'Walk-in Customer',
+          lead_source: 'Direct (Walk-in)',
+          identifier: `walkin-${Date.now()}`,
+          car_brand: carBrand || 'Unknown',
+          car_model: carModel || 'Unknown',
+          priority: 'Medium',
+          lead_type: 'Completed',
+          booking_type: 'Direct',
+          garage_assigned: garageName,
+          garage_id: garageId,
+          booking_date_time: bookingDate
+            ? new Date(bookingDate).toISOString()
+            : new Date().toISOString(),
+        })
+        .select('id')
+        .single();
+      if (leadErr) throw leadErr;
+
+      // 2. Reuse the existing finalizeBilling with the new lead id
+      return this.finalizeBilling(newLead.id, lineItems, paidTo, garageId, garageName, discount);
+
+    } else {
+      // localStorage path: create a minimal lead entry, then finalize
+      const newLeadId = uuidv4();
+      const now = new Date().toISOString();
+      const newLead = {
+        id: newLeadId,
+        customerName: customerName || 'Walk-in Customer',
+        leadSource: 'Direct (Walk-in)',
+        identifier: `walkin-${Date.now()}`,
+        carBrand: carBrand || 'Unknown',
+        carModel: carModel || 'Unknown',
+        priority: 'Medium' as const,
+        leadType: 'Completed' as const,
+        bookingType: 'Direct',
+        garageAssigned: garageName,
+        garageId,
+        bookingDateTime: bookingDate ? new Date(bookingDate).toISOString() : now,
+        garageNotified: false,
+        isVip: false,
+        whatsappBroadcast: false,
+        createdDate: now,
+        bookingHistory: [],
+        activityHistory: [],
+      };
+      const leadsData = localStorage.getItem(LEADS_KEY);
+      const leads: any[] = leadsData ? JSON.parse(leadsData) : [];
+      leads.unshift(newLead);
+      localStorage.setItem(LEADS_KEY, JSON.stringify(leads));
+
+      return this.finalizeBilling(newLeadId, lineItems, paidTo, garageId, garageName, discount);
     }
   },
 
@@ -776,79 +952,117 @@ export const SettlementService = {
       if (garageErr) throw garageErr;
       if (!garage) throw new Error('Garage not found');
 
-      // Fetch settlements with joined lead and billing details
-      const { data: settlements, error: settlErr } = await supabase
-        .from('garage_settlements')
-        .select(`
+
+      // Build a helper that maps raw Supabase rows → SettlementDetail shape.
+      // discountSupported controls whether booking_billing.discount was returned.
+      const mapSettlementRows = (rows: any[]) => {
+        let balance = 0;
+        const formatted = (rows || []).map((row: any) => {
+          const isSettled = !!row.settled;
+          const netAmount = Number(row.net_amount) || 0;
+          if (!isSettled) balance += netAmount;
+
+          const billingRow = Array.isArray(row.booking_billing) ? row.booking_billing[0] : row.booking_billing;
+          return {
+            id: row.id,
+            netAmount,
+            settled: isSettled,
+            settledAt: row.settled_at,
+            createdAt: row.created_at,
+            customerName: row.leads?.customer_name || 'Unknown Customer',
+            bookingDate: row.leads?.booking_date_time || row.created_at,
+            carBrand: row.leads?.car_brand || '',
+            carModel: row.leads?.car_model || '',
+            billing: billingRow ? {
+              id: billingRow.id,
+              totalAmount: Number(billingRow.total_amount),
+              discount: Number(billingRow.discount ?? 0),
+              paidTo: billingRow.paid_to,
+              status: billingRow.status,
+              lineItems: (billingRow.billing_line_items || []).map((item: any) => ({
+                id: item.id,
+                name: item.name,
+                amount: Number(item.amount),
+                splitEnabled: !!item.split_enabled,
+                mechhelpPct: Number(item.mechhelp_pct),
+                garagePct: Number(item.garage_pct)
+              }))
+            } : null
+          };
+        });
+        return { formatted, balance };
+      };
+
+      const BASE_SELECT = `
+        id,
+        net_amount,
+        settled,
+        settled_at,
+        created_at,
+        leads (
           id,
-          net_amount,
-          settled,
-          settled_at,
-          created_at,
-          leads (
+          customer_name,
+          booking_date_time,
+          car_brand,
+          car_model
+        ),
+        booking_billing (
+          id,
+          total_amount,
+          paid_to,
+          status,
+          billing_line_items (
             id,
-            customer_name,
-            booking_date_time,
-            car_brand,
-            car_model
-          ),
-          booking_billing (
-            id,
-            total_amount,
-            paid_to,
-            status,
-            billing_line_items (
-              id,
-              name,
-              amount,
-              split_enabled,
-              mechhelp_pct,
-              garage_pct
-            )
+            name,
+            amount,
+            split_enabled,
+            mechhelp_pct,
+            garage_pct
           )
-        `)
+        )
+      `;
+
+      const SELECT_WITH_DISCOUNT = BASE_SELECT.replace(
+        'total_amount,',
+        'total_amount,\n            discount,'
+      );
+
+      // Try with discount first; fall back to without if the column doesn't exist yet.
+      let settlements: any[] | null = null;
+
+      const { data: dataWithDiscount, error: errWithDiscount } = await supabase
+        .from('garage_settlements')
+        .select(SELECT_WITH_DISCOUNT)
         .eq('garage_id', garageId)
         .order('created_at', { ascending: false });
-      if (settlErr) throw settlErr;
 
-      let balance = 0;
-      const formattedSettlements = (settlements || []).map((row: any) => {
-        const isSettled = !!row.settled;
-        const netAmount = Number(row.net_amount) || 0;
-        if (!isSettled) balance += netAmount;
+      if (errWithDiscount) {
+        // If the error is about the discount column, retry without it
+        const msg = (errWithDiscount.message || '').toLowerCase();
+        if (msg.includes('discount') || msg.includes('column')) {
+          console.warn('booking_billing.discount column not found — falling back to query without it:', errWithDiscount.message);
+          const { data: dataWithout, error: errWithout } = await supabase
+            .from('garage_settlements')
+            .select(BASE_SELECT)
+            .eq('garage_id', garageId)
+            .order('created_at', { ascending: false });
+          if (errWithout) throw errWithout;
+          settlements = dataWithout;
+        } else {
+          throw errWithDiscount;
+        }
+      } else {
+        settlements = dataWithDiscount;
+      }
 
-        return {
-          id: row.id,
-          netAmount,
-          settled: isSettled,
-          settledAt: row.settled_at,
-          createdAt: row.created_at,
-          customerName: row.leads?.customer_name || 'Unknown Customer',
-          bookingDate: row.leads?.booking_date_time || row.created_at,
-          carBrand: row.leads?.car_brand || '',
-          carModel: row.leads?.car_model || '',
-          billing: row.booking_billing ? {
-            id: row.booking_billing.id,
-            totalAmount: Number(row.booking_billing.total_amount),
-            paidTo: row.booking_billing.paid_to,
-            status: row.booking_billing.status,
-            lineItems: (row.booking_billing.billing_line_items || []).map((item: any) => ({
-              id: item.id,
-              name: item.name,
-              amount: Number(item.amount),
-              splitEnabled: !!item.split_enabled,
-              mechhelpPct: Number(item.mechhelp_pct),
-              garagePct: Number(item.garage_pct)
-            }))
-          } : null
-        };
-      });
+      const { formatted: formattedSettlements, balance } = mapSettlementRows(settlements || []);
 
       return {
         garage,
         balance: Math.round(balance * 100) / 100,
         settlements: formattedSettlements
       };
+
 
     } else {
       await delay();
@@ -889,6 +1103,7 @@ export const SettlementService = {
             billing: billing ? {
               id: billing.id,
               totalAmount: Number(billing.totalAmount),
+              discount: Number(billing.discount ?? 0),
               paidTo: billing.paidTo,
               status: billing.status,
               lineItems: billingLineItems.map(li => ({
@@ -913,6 +1128,148 @@ export const SettlementService = {
         balance: Math.round(balance * 100) / 100,
         settlements: garageSettlements
       };
+    }
+  },
+  async getAllSettlements(): Promise<any> {
+    if (useSupabase) {
+      const BASE_SELECT = `
+        id,
+        net_amount,
+        settled,
+        settled_at,
+        created_at,
+        leads (
+          id,
+          customer_name,
+          booking_date_time,
+          car_brand,
+          car_model
+        ),
+        booking_billing (
+          id,
+          total_amount,
+          paid_to,
+          status,
+          billing_line_items (
+            id,
+            name,
+            amount,
+            split_enabled,
+            mechhelp_pct,
+            garage_pct
+          )
+        )
+      `;
+
+      const SELECT_WITH_DISCOUNT = BASE_SELECT.replace(
+        'total_amount,',
+        'total_amount,\n            discount,'
+      );
+
+      const mapRows = (rows: any[]) =>
+        (rows || []).map((row: any) => {
+          const billingRow = Array.isArray(row.booking_billing) ? row.booking_billing[0] : row.booking_billing;
+          return {
+            id: row.id,
+            netAmount: Number(row.net_amount) || 0,
+            settled: !!row.settled,
+            settledAt: row.settled_at,
+            createdAt: row.created_at,
+            customerName: row.leads?.customer_name || 'Unknown Customer',
+            bookingDate: row.leads?.booking_date_time || row.created_at,
+            carBrand: row.leads?.car_brand || '',
+            carModel: row.leads?.car_model || '',
+            billing: billingRow ? {
+              id: billingRow.id,
+              totalAmount: Number(billingRow.total_amount),
+              discount: Number(billingRow.discount ?? 0),
+              paidTo: billingRow.paid_to,
+              status: billingRow.status,
+              lineItems: (billingRow.billing_line_items || []).map((item: any) => ({
+                id: item.id,
+                name: item.name,
+                amount: Number(item.amount),
+                splitEnabled: !!item.split_enabled,
+                mechhelpPct: Number(item.mechhelp_pct),
+                garagePct: Number(item.garage_pct)
+              }))
+            } : null
+          };
+        });
+
+      let rows: any[] | null = null;
+
+      const { data: dataWithDiscount, error: errWithDiscount } = await supabase
+        .from('garage_settlements')
+        .select(SELECT_WITH_DISCOUNT)
+        .order('created_at', { ascending: false });
+
+      if (errWithDiscount) {
+        const msg = (errWithDiscount.message || '').toLowerCase();
+        if (msg.includes('discount') || msg.includes('column')) {
+          const { data: dataWithout, error: errWithout } = await supabase
+            .from('garage_settlements')
+            .select(BASE_SELECT)
+            .order('created_at', { ascending: false });
+          if (errWithout) throw errWithout;
+          rows = dataWithout;
+        } else {
+          throw errWithDiscount;
+        }
+      } else {
+        rows = dataWithDiscount;
+      }
+
+      return { settlements: mapRows(rows || []) };
+
+    } else {
+      await delay();
+
+      const settlementsData = localStorage.getItem(SETTLEMENTS_KEY);
+      const settlements: any[] = settlementsData ? JSON.parse(settlementsData) : [];
+
+      const billingsData = localStorage.getItem(BILLING_KEY);
+      const billings: any[] = billingsData ? JSON.parse(billingsData) : [];
+
+      const lineItemsData = localStorage.getItem(LINE_ITEMS_KEY);
+      const lineItems: any[] = lineItemsData ? JSON.parse(lineItemsData) : [];
+
+      const leads = await LeadService.getLeads();
+
+      const allSettlements = settlements.map(s => {
+        const billing = billings.find(b => b.id === s.billingId);
+        const lead = leads.find(l => l.id === s.leadId);
+        const billingLineItems = lineItems.filter(li => li.billingId === s.billingId);
+
+        return {
+          id: s.id,
+          netAmount: Number(s.netAmount),
+          settled: !!s.settled,
+          settledAt: s.settledAt,
+          createdAt: s.createdAt,
+          customerName: lead?.customerName || 'Unknown Customer',
+          bookingDate: lead?.bookingDateTime || s.createdAt,
+          carBrand: lead?.carBrand || '',
+          carModel: lead?.carModel || '',
+          billing: billing ? {
+            id: billing.id,
+            totalAmount: Number(billing.totalAmount),
+            discount: Number(billing.discount ?? 0),
+            paidTo: billing.paidTo,
+            status: billing.status,
+            lineItems: billingLineItems.map(li => ({
+              id: li.id,
+              name: li.name,
+              amount: Number(li.amount),
+              splitEnabled: !!li.splitEnabled,
+              mechhelpPct: Number(li.mechhelpPct),
+              garagePct: Number(li.garagePct)
+            }))
+          } : null
+        };
+      });
+
+      return { settlements: allSettlements };
     }
   },
 
@@ -955,6 +1312,109 @@ export const SettlementService = {
         count
       };
     }
-  }
-};
+  },
 
+  // Record a partial cash payment against a garage's outstanding balance.
+  // Inserts a credit row into garage_settlements with a sign that offsets the balance based on direction:
+  // - 'mechhelp_to_garage' (we pay garage): net_amount is positive (+amount), reducing what we owe (or increasing what we are owed).
+  // - 'garage_to_mechhelp' (garage pays us): net_amount is negative (-amount), reducing what garage owes (or increasing what we owe).
+  async recordPayment(
+    garageId: string,
+    amount: number,
+    direction: 'mechhelp_to_garage' | 'garage_to_mechhelp',
+    _currentBalance?: number
+  ): Promise<any> {
+    if (amount <= 0) throw new Error('Payment amount must be greater than zero.');
+
+    const signedAmount = Math.abs(amount);
+    const netAmount = direction === 'mechhelp_to_garage' ? signedAmount : -signedAmount;
+
+    if (useSupabase) {
+      const { error } = await supabase
+        .from('garage_settlements')
+        .insert({
+          garage_id: garageId,
+          billing_id: null,   // payment row — not tied to a specific booking
+          lead_id: null,
+          net_amount: netAmount,
+          settled: true,      // payment rows are immediately "settled" (they are the settlement)
+          settled_at: new Date().toISOString(),
+        });
+      if (error) throw error;
+      return { success: true, amount: signedAmount, netAmount, direction };
+
+    } else {
+      await delay();
+      const settlementsData = localStorage.getItem(SETTLEMENTS_KEY);
+      const settlements: any[] = settlementsData ? JSON.parse(settlementsData) : [];
+      settlements.unshift({
+        id: uuidv4(),
+        garageId,
+        billingId: null,
+        leadId: null,
+        netAmount,
+        settled: true,
+        settledAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        isPaymentRow: true,
+        direction,
+      });
+      localStorage.setItem(SETTLEMENTS_KEY, JSON.stringify(settlements));
+      return { success: true, amount: signedAmount, netAmount, direction };
+    }
+  },
+
+  // Add a new garage (Supabase: INSERT; offline: push to MOCK_GARAGES).
+  async addGarage(name: string): Promise<{ id: string; name: string }> {
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error('Garage name cannot be empty.');
+
+    if (useSupabase) {
+      const { data, error } = await supabase
+        .from('garages')
+        .insert({ name: trimmed })
+        .select('id, name')
+        .single();
+      if (error) throw error;
+      return data;
+    } else {
+      await delay();
+      if (MOCK_GARAGES.some(g => g.name.toLowerCase() === trimmed.toLowerCase())) {
+        throw new Error(`A garage named "${trimmed}" already exists.`);
+      }
+      const newGarage = { id: `g${Date.now()}`, name: trimmed };
+      MOCK_GARAGES.push(newGarage);
+      return newGarage;
+    }
+  },
+
+  // Delete a garage (or soft-delete if is_active exists). Guards against nonzero balance.
+  async removeGarage(garageId: string, currentBalance: number): Promise<void> {
+    if (Math.round(currentBalance * 100) !== 0) {
+      throw new Error(
+        `Cannot remove this garage — it has an outstanding balance of ₹${Math.abs(currentBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}. Settle the balance first.`
+      );
+    }
+
+    if (useSupabase) {
+      // Try soft-delete first if is_active column exists, fallback to delete
+      const { error } = await supabase
+        .from('garages')
+        .update({ is_active: false })
+        .eq('id', garageId);
+      
+      if (error) {
+        // Fallback if is_active column does not exist on Supabase table
+        const { error: deleteErr } = await supabase
+          .from('garages')
+          .delete()
+          .eq('id', garageId);
+        if (deleteErr) throw deleteErr;
+      }
+    } else {
+      await delay();
+      const idx = MOCK_GARAGES.findIndex(g => g.id === garageId);
+      if (idx !== -1) MOCK_GARAGES.splice(idx, 1);
+    }
+  },
+};
