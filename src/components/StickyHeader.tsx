@@ -30,7 +30,8 @@ export const StickyHeader: React.FC = () => {
   // Reminders logic matching ReminderPage (Retarget leads due today)
   const todayReminders = leads.filter(l => l.leadType === 'Retarget' && isToday(parseBookingDate(l.nextFollowUpDate)));
   const morningReminders = todayReminders.filter(l => l.retargetTimeSlot === 'morning').length;
-  const eveningReminders = todayReminders.filter(l => l.retargetTimeSlot === 'evening').length;
+  // Legacy leads with no time slot (null/undefined) default to Evening — mirrors ReminderPage logic
+  const eveningReminders = todayReminders.filter(l => l.retargetTimeSlot === 'evening' || !l.retargetTimeSlot).length;
 
   const rescheduledCustomers = leads.filter(l => (l.bookingHistory?.length || 0) > 0).length;
   const rescheduledToday = leads.filter(l => 

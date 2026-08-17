@@ -31,7 +31,8 @@ export const ReminderPage: React.FC<Props> = ({ slot }) => {
       if (l.leadType !== 'Retarget') return false;
       if (!isToday(parseDate(l.nextFollowUpDate))) return false;
       if (slot === 'morning') return l.retargetTimeSlot === 'morning';
-      if (slot === 'evening') return l.retargetTimeSlot === 'evening';
+      // Legacy leads with no time slot (null/undefined) default to Evening
+      if (slot === 'evening') return l.retargetTimeSlot === 'evening' || !l.retargetTimeSlot;
       return false;
     });
 
