@@ -12,8 +12,8 @@ interface LeadContextType {
   addSujalItem: (item: Omit<SujalCallListItem, 'id' | 'dateAdded'>) => Promise<void>;
   updateSujalItem: (item: SujalCallListItem) => Promise<void>;
   deleteSujalItem: (id: string) => Promise<void>;
-  finalizeBilling: (bookingId: string, lineItems: any[], paidTo: 'garage' | 'mechhelp', garageId?: string, garageName?: string, discount?: number) => Promise<any>;
-  finalizeDirectBilling: (customerName: string, carBrand: string, carModel: string, bookingDate: string, garageId: string, garageName: string, lineItems: any[], paidTo: 'garage' | 'mechhelp', discount?: number) => Promise<any>;
+  finalizeBilling: (bookingId: string, lineItems: any[], paidTo: 'garage' | 'mechhelp', garageId?: string, garageName?: string, discount?: number, numberPlate?: string, carBrand?: string, carModel?: string, customerName?: string) => Promise<any>;
+  finalizeDirectBilling: (customerName: string, carBrand: string, carModel: string, numberPlate: string, bookingDate: string, garageId: string, garageName: string, lineItems: any[], paidTo: 'garage' | 'mechhelp', discount?: number) => Promise<any>;
   getGarageList: () => Promise<{ id: string; name: string }[]>;
   addGarage: (name: string) => Promise<{ id: string; name: string }>;
   removeGarage: (garageId: string, currentBalance: number) => Promise<void>;
@@ -150,14 +150,14 @@ export const LeadProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const finalizeBilling = async (bookingId: string, lineItems: any[], paidTo: 'garage' | 'mechhelp', garageId?: string, garageName?: string, discount?: number) => {
-    const res = await SettlementService.finalizeBilling(bookingId, lineItems, paidTo, garageId, garageName, discount);
+  const finalizeBilling = async (bookingId: string, lineItems: any[], paidTo: 'garage' | 'mechhelp', garageId?: string, garageName?: string, discount?: number, numberPlate?: string, carBrand?: string, carModel?: string, customerName?: string) => {
+    const res = await SettlementService.finalizeBilling(bookingId, lineItems, paidTo, garageId, garageName, discount, numberPlate, carBrand, carModel, customerName);
     await fetchAllData();
     return res;
   };
 
-  const finalizeDirectBilling = async (customerName: string, carBrand: string, carModel: string, bookingDate: string, garageId: string, garageName: string, lineItems: any[], paidTo: 'garage' | 'mechhelp', discount: number = 0) => {
-    const res = await SettlementService.finalizeDirectBilling(customerName, carBrand, carModel, bookingDate, garageId, garageName, lineItems, paidTo, discount);
+  const finalizeDirectBilling = async (customerName: string, carBrand: string, carModel: string, numberPlate: string, bookingDate: string, garageId: string, garageName: string, lineItems: any[], paidTo: 'garage' | 'mechhelp', discount: number = 0) => {
+    const res = await SettlementService.finalizeDirectBilling(customerName, carBrand, carModel, numberPlate, bookingDate, garageId, garageName, lineItems, paidTo, discount);
     await fetchAllData();
     return res;
   };

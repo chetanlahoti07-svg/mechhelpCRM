@@ -44,6 +44,8 @@ export interface Lead {
   isVip: boolean;
   whatsappBroadcast: boolean;
   retargetTimeSlot?: 'morning' | 'evening' | null;
+  detailsSharedAt?: string | null;
+  numberPlate?: string;
   notes: string;
   createdDate: string;
 }
@@ -106,6 +108,9 @@ export interface GarageSettlement {
   createdAt: string;
   customerName?: string;
   bookingDate?: string;
+  carBrand?: string;
+  carModel?: string;
+  numberPlate?: string;
 }
 
 export interface GarageWithBalance {

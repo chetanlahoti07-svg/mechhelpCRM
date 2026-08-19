@@ -4,19 +4,27 @@
   background: rgba(0, 0, 0, 0.8);
   /* no backdrop-filter for minimalist */
   display: flex;
-  align-items: center;
+  /* flex-start + padding-top ensures the modal is never hidden behind the
+     sticky header (page title row + stat-card row, ~160px total). */
+  align-items: flex-start;
   justify-content: center;
   z-index: 1000;
-  padding: 1rem;
+  /* top padding clears the sticky header; side/bottom padding give breathing room */
+  padding: 10rem 1rem 2rem;
+  overflow-y: auto;
 }
 
 .modal-content {
   width: 100%;
   max-width: 600px;
-  max-height: calc(100vh - 2rem);
+  /* Allow the content to scroll within itself if it's taller than the
+     remaining viewport after the sticky header and overlay padding. */
+  max-height: calc(100vh - 12rem);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* margin: auto keeps horizontal centering when flex-start is used */
+  margin: 0 auto;
 }
 
 .modal-header {

@@ -21,6 +21,7 @@ interface SettlementDetail {
   bookingDate: string;
   carBrand: string;
   carModel: string;
+  numberPlate?: string;
   billing: {
     id: string;
     totalAmount: number;
@@ -550,7 +551,7 @@ export const GarageSettlement: React.FC = () => {
             <div class="section-title">Booking Details</div>
             <div class="info-grid">
               <div class="info-item"><span>Customer Name</span><strong>${settlement.customerName}</strong></div>
-              <div class="info-item"><span>Vehicle</span><strong>${settlement.carBrand} ${settlement.carModel}</strong></div>
+              <div class="info-item"><span>Vehicle</span><strong>${settlement.carBrand} ${settlement.carModel}${settlement.numberPlate ? ` (${settlement.numberPlate})` : ''}</strong></div>
               <div class="info-item"><span>Booking Date</span><strong>${new Date(settlement.bookingDate).toLocaleDateString('en-GB')}</strong></div>
               <div class="info-item"><span>Payment Collected By</span><strong style="text-transform: capitalize;">${settlement.billing?.paidTo || 'N/A'}</strong></div>
             </div>
@@ -777,7 +778,7 @@ export const GarageSettlement: React.FC = () => {
         html += `
           <div class="info-grid">
             <div class="info-item"><span>Customer</span><strong>${s.customerName}</strong></div>
-            <div class="info-item"><span>Vehicle</span><strong>${s.carBrand} ${s.carModel}</strong></div>
+            <div class="info-item"><span>Vehicle</span><strong>${s.carBrand} ${s.carModel}${s.numberPlate ? ` (${s.numberPlate})` : ''}</strong></div>
             <div class="info-item"><span>Status</span><strong style="text-transform: capitalize;">${b.status}</strong></div>
             <div class="info-item"><span>Collected By</span><strong style="text-transform: capitalize;">${b.paidTo || 'N/A'}</strong></div>
           </div>
@@ -1128,7 +1129,9 @@ export const GarageSettlement: React.FC = () => {
                             ) : (
                               <>
                                 <strong>{s.customerName}</strong>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{s.carBrand} {s.carModel}</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                  {s.carBrand} {s.carModel}{s.numberPlate ? ` • ${s.numberPlate}` : ''}
+                                </div>
                               </>
                             )}
                           </td>
@@ -1178,19 +1181,18 @@ export const GarageSettlement: React.FC = () => {
 
       {/* ── Level 3: Billing Breakdown Modal ──────────────────────────────── */}
       {selectedSettlement && (
-        <div className="modal-overlay" style={{ zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem 1rem' }}>
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
           <div
             className="modal-content surface-panel animate-fade-in"
             style={{
               maxWidth: '550px',
-              maxHeight: '85vh',
+              maxHeight: 'calc(100vh - 12rem)',
               overflowY: 'auto',
               backgroundColor: 'var(--bg-secondary)',
               color: 'var(--text-primary)',
               border: '1px solid var(--border-light)',
               borderRadius: 'var(--radius-lg)',
               boxShadow: 'var(--shadow-lg)',
-              margin: 'auto'
             }}
           >
             <div className="modal-header">
@@ -1203,7 +1205,7 @@ export const GarageSettlement: React.FC = () => {
               <div className="breakdown-section" style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem', marginBottom: '1rem' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
                   <div><span className="breakdown-label">Customer:</span><strong>{selectedSettlement.customerName}</strong></div>
-                  <div><span className="breakdown-label">Vehicle:</span><span>{selectedSettlement.carBrand} {selectedSettlement.carModel}</span></div>
+                  <div><span className="breakdown-label">Vehicle:</span><span>{selectedSettlement.carBrand} {selectedSettlement.carModel}{selectedSettlement.numberPlate ? ` (${selectedSettlement.numberPlate})` : ''}</span></div>
                   <div><span className="breakdown-label">Booking Date:</span><span>{new Date(selectedSettlement.bookingDate).toLocaleDateString('en-GB')}</span></div>
                   <div><span className="breakdown-label">Payment Collected By:</span><strong style={{ textTransform: 'capitalize' }}>{selectedSettlement.billing?.paidTo}</strong></div>
                 </div>

@@ -37,6 +37,7 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
   const [customerName, setCustomerName] = useState('');
   const [carBrand, setCarBrand] = useState('');
   const [carModel, setCarModel] = useState('');
+  const [numberPlate, setNumberPlate] = useState('');
   const [bookingDateTime, setBookingDateTime] = useState('');
 
   // Garage dropdown state — stores both id and display name
@@ -61,6 +62,7 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
       setCustomerName(lead.customerName || '');
       setCarBrand(lead.carBrand || '');
       setCarModel(lead.carModel || '');
+      setNumberPlate(lead.numberPlate || '');
       setBookingDateTime(lead.bookingDateTime ? new Date(lead.bookingDateTime).toLocaleDateString('en-GB') : '');
       setDiscountStr('0');
 
@@ -174,7 +176,7 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
       }));
 
       // Pass pre-resolved garageId and garageName + discount so finalize processes everything cleanly
-      await finalizeBilling(lead.id, formattedItems, paidTo, selectedGarageId, selectedGarageName, discountVal);
+      await finalizeBilling(lead.id, formattedItems, paidTo, selectedGarageId, selectedGarageName, discountVal, numberPlate, carBrand, carModel, customerName);
       onClose();
     } catch (err: any) {
       console.error(err);
@@ -186,7 +188,7 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content surface-panel animate-fade-in" style={{ maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
+      <div className="modal-content surface-panel animate-fade-in" style={{ maxWidth: '600px', maxHeight: 'calc(100vh - 12rem)', overflowY: 'auto' }}>
         <div className="modal-header">
           <h2>Mark Booking Completed</h2>
           <button onClick={onClose} className="btn-icon" disabled={isSaving}>
@@ -216,6 +218,17 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
                   <input type="text" className="form-input" placeholder="Brand" value={carBrand} onChange={e => setCarBrand(e.target.value)} disabled={isSaving} />
                   <input type="text" className="form-input" placeholder="Model" value={carModel} onChange={e => setCarModel(e.target.value)} disabled={isSaving} />
                 </div>
+              </div>
+              <div>
+                <label className="form-label" style={{ marginBottom: '0.25rem' }}>Number Plate</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. MH12AB1234"
+                  value={numberPlate}
+                  onChange={e => setNumberPlate(e.target.value)}
+                  disabled={isSaving}
+                />
               </div>
               <div>
                 <label className="form-label" style={{ marginBottom: '0.25rem' }}>Garage</label>

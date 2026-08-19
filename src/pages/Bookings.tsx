@@ -198,6 +198,7 @@ export const Bookings: React.FC = () => {
                     </td>
                     <td>
                       <div className="text-sm font-medium">{lead.carBrand} {lead.carModel}</div>
+                      {lead.numberPlate && <div className="text-xs text-muted font-medium">{lead.numberPlate}</div>}
                       <div className="text-xs text-gray-400">{lead.garageAssigned || 'No Garage'}</div>
                     </td>
                     <td>

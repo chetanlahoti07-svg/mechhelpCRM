@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useLeadContext } from '../store/LeadContext';
 import { AddLeadModal } from '../components/AddLeadModal';
-import { Edit, Search, Sun, Moon } from 'lucide-react';
+import { Edit, Search, Sun, Moon, PhoneForwarded } from 'lucide-react';
 import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
-import { isBefore, isToday, startOfToday } from 'date-fns';
+import { isBefore, isToday, startOfToday, differenceInCalendarDays } from 'date-fns';
 import type { Lead } from '../types';
 
 const parseDate = (dStr?: string): Date => {
@@ -12,7 +12,7 @@ const parseDate = (dStr?: string): Date => {
 };
 
 interface Props {
-  slot: 'morning' | 'evening';
+  slot: 'morning' | 'evening' | 'details-shared';
 }
 
 export const ReminderPage: React.FC<Props> = ({ slot }) => {
@@ -28,6 +28,15 @@ export const ReminderPage: React.FC<Props> = ({ slot }) => {
 
   const sectionLeads = useMemo(() => {
     let data = leads.filter(l => {
+      if (slot === 'details-shared') {
+        if (l.leadType !== 'Details Shared') return false;
+        const stageTimeStr = l.detailsSharedAt || l.createdDate;
+        if (!stageTimeStr) return false;
+        const entryDate = parseDate(stageTimeStr);
+        const daysInStage = differenceInCalendarDays(new Date(), entryDate);
+        return daysInStage >= 3;
+      }
+
       if (l.leadType !== 'Retarget') return false;
       if (!isToday(parseDate(l.nextFollowUpDate))) return false;
       if (slot === 'morning') return l.retargetTimeSlot === 'morning';
@@ -60,12 +69,22 @@ export const ReminderPage: React.FC<Props> = ({ slot }) => {
   };
 
   const isMorning = slot === 'morning';
-  const title = isMorning ? "Today's Reminder: Morning" : "Today's Reminder: Evening";
+  const isEvening = slot === 'evening';
+
+  const title = isMorning
+    ? "Today's Reminder: Morning"
+    : isEvening
+    ? "Today's Reminder: Evening"
+    : "Detail Shared Reminders";
+
   const subtitle = isMorning
     ? 'Retarget callbacks preferred during morning hours'
-    : 'Retarget callbacks preferred during evening hours';
-  const Icon = isMorning ? Sun : Moon;
-  const iconClass = isMorning ? 'text-warning' : 'text-primary';
+    : isEvening
+    ? 'Retarget callbacks preferred during evening hours'
+    : 'Leads in "Details Shared" stage for 3 or more days needing follow-up';
+
+  const Icon = isMorning ? Sun : isEvening ? Moon : PhoneForwarded;
+  const iconClass = isMorning ? 'text-warning' : isEvening ? 'text-primary' : 'text-accent';
 
   return (
     <div className="all-leads animate-fade-in">
@@ -102,7 +121,7 @@ export const ReminderPage: React.FC<Props> = ({ slot }) => {
         </div>
 
         <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-          {sectionLeads.length} {sectionLeads.length === 1 ? 'lead' : 'leads'} for today
+          {sectionLeads.length} {sectionLeads.length === 1 ? 'lead' : 'leads'} {slot === 'details-shared' ? 'pending follow-up' : 'for today'}
         </div>
       </div>
 
@@ -132,7 +151,13 @@ export const ReminderPage: React.FC<Props> = ({ slot }) => {
                 <td>{lead.carBrand} {lead.carModel}</td>
                 <td>
                   <span className="badge badge-gray" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                    {lead.retargetTimeSlot === 'morning' ? '☀️ Morning' : lead.retargetTimeSlot === 'evening' ? '🌙 Evening' : lead.leadType}
+                    {slot === 'details-shared'
+                      ? '📋 Details Shared'
+                      : lead.retargetTimeSlot === 'morning'
+                      ? '☀️ Morning'
+                      : lead.retargetTimeSlot === 'evening'
+                      ? '🌙 Evening'
+                      : lead.leadType}
                   </span>
                 </td>
                 <td>
@@ -156,7 +181,9 @@ export const ReminderPage: React.FC<Props> = ({ slot }) => {
             {sectionLeads.length === 0 && (
               <tr>
                 <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem' }}>
-                  No {isMorning ? 'morning' : 'evening'} reminders for today.
+                  {slot === 'details-shared'
+                    ? 'No leads in Details Shared stage for 3+ days.'
+                    : `No ${isMorning ? 'morning' : 'evening'} reminders for today.`}
                 </td>
               </tr>
             )}

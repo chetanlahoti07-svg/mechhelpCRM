@@ -4,12 +4,12 @@ import {
   LayoutDashboard,
   Sun,
   Moon,
-  KanbanSquare, 
   Users, 
   CalendarDays,
   Calendar,
   Star, 
   PhoneCall, 
+  PhoneForwarded,
   BarChart3,
   CreditCard,
   Wrench
@@ -41,8 +41,8 @@ const navSections: NavSection[] = [
       { path: '/leads', label: 'All Leads', icon: Users },
       { path: '/leads/today/morning', label: 'Reminders: Morning', icon: Sun },
       { path: '/leads/today/evening', label: 'Reminders: Evening', icon: Moon },
+      { path: '/leads/details-shared', label: 'Detail Shared Reminders', icon: PhoneForwarded },
       { path: '/sujal', label: 'Pending Call List', icon: PhoneCall },
-      { path: '/kanban', label: 'Kanban', icon: KanbanSquare },
     ]
   },
   {

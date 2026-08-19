@@ -21,6 +21,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
   const [customerName, setCustomerName] = useState(initialData?.customerName || '');
   const [carBrand, setCarBrand] = useState(initialData?.carBrand || '');
   const [carModel, setCarModel] = useState(initialData?.carModel || '');
+  const [numberPlate, setNumberPlate] = useState(initialData?.numberPlate || '');
   const [priority, setPriority] = useState<Priority>(initialData?.priority || 'Medium');
   const [leadType, setLeadType] = useState<LeadType>(initialData?.leadType || 'Fresh Lead');
   const [retargetTimeSlot, setRetargetTimeSlot] = useState<'morning' | 'evening' | null>(initialData?.retargetTimeSlot || null);
@@ -82,6 +83,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
         setCustomerName('');
         setCarBrand('');
         setCarModel('');
+        setNumberPlate('');
         setPriority('Medium');
         setLeadType('Fresh Lead');
         setRetargetTimeSlot(null);
@@ -102,6 +104,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
         setCustomerName(initialData.customerName || '');
         setCarBrand(initialData.carBrand || '');
         setCarModel(initialData.carModel || '');
+        setNumberPlate(initialData.numberPlate || '');
         setPriority(initialData.priority || 'Medium');
         setLeadType(initialData.leadType || 'Fresh Lead');
         setRetargetTimeSlot(initialData.retargetTimeSlot || null);
@@ -199,6 +202,12 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
       isVip,
       whatsappBroadcast,
       retargetTimeSlot: leadType === 'Retarget' ? retargetTimeSlot : null,
+      detailsSharedAt: leadType === 'Details Shared'
+        ? (isEditing && initialData?.leadType === 'Details Shared' && initialData?.detailsSharedAt
+            ? initialData.detailsSharedAt
+            : new Date().toISOString())
+        : null,
+      numberPlate: numberPlate.trim() || undefined,
       notes,
       createdDate: isEditing ? initialData!.createdDate! : new Date().toISOString(),
     };
@@ -337,6 +346,17 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
                 )}
                 {errors.carModel && <div className="invalid-feedback">{errors.carModel}</div>}
               </div>
+            </div>
+
+            <div className="form-group mb-4">
+              <label className="form-label">Number Plate</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="e.g. MH12AB1234"
+                value={numberPlate}
+                onChange={e => setNumberPlate(e.target.value)}
+              />
             </div>
 
             <div className="form-row">

@@ -32,6 +32,7 @@ function App() {
             <Route path="leads/today" element={<Navigate to="/leads/today/morning" replace />} />
             <Route path="leads/today/morning" element={<ReminderPage slot="morning" />} />
             <Route path="leads/today/evening" element={<ReminderPage slot="evening" />} />
+            <Route path="leads/details-shared" element={<ReminderPage slot="details-shared" />} />
             <Route path="bookings" element={<Bookings />} />
             <Route path="bookings/calendar" element={<BookingCalendar />} />
             <Route path="vip" element={<VipCustomers />} />

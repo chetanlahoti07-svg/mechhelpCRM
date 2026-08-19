@@ -32,6 +32,7 @@ export const AddDirectCustomerModal: React.FC<Props> = ({
   const [customerName, setCustomerName] = useState('');
   const [carBrand, setCarBrand]         = useState('');
   const [carModel, setCarModel]         = useState('');
+  const [numberPlate, setNumberPlate]   = useState('');
   const [bookingDate, setBookingDate]   = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -84,6 +85,7 @@ export const AddDirectCustomerModal: React.FC<Props> = ({
     setCustomerName('');
     setCarBrand('');
     setCarModel('');
+    setNumberPlate('');
     const d = new Date();
     setBookingDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
     setLineItems([{ name: 'General Service', amount: '', splitEnabled: true, mechhelpPct: 20, garagePct: 80, showPctEdit: false }]);
@@ -124,6 +126,7 @@ export const AddDirectCustomerModal: React.FC<Props> = ({
         customerName.trim(),
         carBrand.trim(),
         carModel.trim(),
+        numberPlate.trim(),
         bookingDate,
         garageId,
         garageName,
@@ -146,7 +149,7 @@ export const AddDirectCustomerModal: React.FC<Props> = ({
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content surface-panel animate-fade-in" style={{ maxWidth: '620px', maxHeight: '90vh', overflowY: 'auto' }}>
+      <div className="modal-content surface-panel animate-fade-in" style={{ maxWidth: '620px', maxHeight: 'calc(100vh - 12rem)', overflowY: 'auto' }}>
         {/* Header */}
         <div className="modal-header">
           <h2>Add Direct / Walk-in Customer</h2>
@@ -202,6 +205,17 @@ export const AddDirectCustomerModal: React.FC<Props> = ({
                   <input type="text" className="form-input" placeholder="Brand (e.g. Maruti)" value={carBrand} onChange={e => setCarBrand(e.target.value)} disabled={isSaving} />
                   <input type="text" className="form-input" placeholder="Model (e.g. Swift)" value={carModel} onChange={e => setCarModel(e.target.value)} disabled={isSaving} />
                 </div>
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label className="form-label" style={{ marginBottom: '0.25rem' }}>Number Plate</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. MH12AB1234"
+                  value={numberPlate}
+                  onChange={e => setNumberPlate(e.target.value)}
+                  disabled={isSaving}
+                />
               </div>
             </div>
           </div>

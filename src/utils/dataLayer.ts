@@ -29,6 +29,8 @@ const mapDbToLead = (row: any): Lead => ({
   isVip: row.is_vip,
   whatsappBroadcast: row.whatsapp_broadcast,
   retargetTimeSlot: row.retarget_time_slot || null,
+  detailsSharedAt: row.details_shared_at || null,
+  numberPlate: row.number_plate || '',
   notes: row.notes || '',
   createdDate: row.created_date,
   bookingHistory: (row.booking_history || []).map((h: any) => ({
@@ -70,6 +72,8 @@ const mapLeadToDb = (lead: Lead) => ({
   is_vip: lead.isVip,
   whatsapp_broadcast: lead.whatsappBroadcast,
   retarget_time_slot: lead.retargetTimeSlot || null,
+  details_shared_at: lead.detailsSharedAt || null,
+  number_plate: lead.numberPlate || null,
   notes: lead.notes,
   created_date: lead.createdDate
 });
@@ -108,11 +112,15 @@ export const LeadService = {
       if (error) throw error;
       
       const fallbackData = JSON.parse(localStorage.getItem('mechhelp_retarget_fallback') || '{}');
+      const detailsSharedFallback = JSON.parse(localStorage.getItem('mechhelp_details_shared_fallback') || '{}');
       return (data || []).map((row: any) => {
         const lead = mapDbToLead(row);
         // If DB returned null for retargetTimeSlot, check our local fallback overlay
         if (!lead.retargetTimeSlot && fallbackData[lead.id]) {
           lead.retargetTimeSlot = fallbackData[lead.id];
+        }
+        if (!lead.detailsSharedAt && detailsSharedFallback[lead.id]) {
+          lead.detailsSharedAt = detailsSharedFallback[lead.id];
         }
         return lead;
       });
@@ -141,6 +149,10 @@ export const LeadService = {
         if (garageMatch) garageId = garageMatch.id;
       }
 
+      const detailsSharedAt = lead.leadType === 'Details Shared'
+        ? (lead.detailsSharedAt || new Date().toISOString())
+        : null;
+
       const dbLead = {
         id: newLeadId,
         user_id: null, // No auth needed
@@ -161,6 +173,8 @@ export const LeadService = {
         is_vip: lead.isVip,
         whatsapp_broadcast: lead.whatsappBroadcast,
         retarget_time_slot: lead.retargetTimeSlot || null,
+        details_shared_at: detailsSharedAt,
+        number_plate: lead.numberPlate || null,
         notes: lead.notes,
         created_date: createdDate
       };
@@ -175,8 +189,9 @@ export const LeadService = {
         `)
         .single();
 
-      if (error && (error.code === 'PGRST204' || error.message?.includes('retarget_time_slot'))) {
+      if (error && (error.code === 'PGRST204' || error.message?.includes('retarget_time_slot') || error.message?.includes('details_shared_at'))) {
         delete (dbLead as any).retarget_time_slot;
+        delete (dbLead as any).details_shared_at;
         const res = await supabase
           .from('leads')
           .insert([dbLead])
@@ -189,12 +204,20 @@ export const LeadService = {
         data = res.data;
         error = res.error;
         
-        // Save to fallback overlay so it survives reloads even if DB column is missing
-        if (data && lead.retargetTimeSlot) {
-          const fallbackData = JSON.parse(localStorage.getItem('mechhelp_retarget_fallback') || '{}');
-          fallbackData[data.id] = lead.retargetTimeSlot;
-          localStorage.setItem('mechhelp_retarget_fallback', JSON.stringify(fallbackData));
-          data.retarget_time_slot = lead.retargetTimeSlot; // Patch memory for immediate return
+        // Save to fallback overlays so it survives reloads even if DB column is missing
+        if (data) {
+          if (lead.retargetTimeSlot) {
+            const fallbackData = JSON.parse(localStorage.getItem('mechhelp_retarget_fallback') || '{}');
+            fallbackData[data.id] = lead.retargetTimeSlot;
+            localStorage.setItem('mechhelp_retarget_fallback', JSON.stringify(fallbackData));
+            data.retarget_time_slot = lead.retargetTimeSlot;
+          }
+          if (detailsSharedAt) {
+            const detailsSharedFallback = JSON.parse(localStorage.getItem('mechhelp_details_shared_fallback') || '{}');
+            detailsSharedFallback[data.id] = detailsSharedAt;
+            localStorage.setItem('mechhelp_details_shared_fallback', JSON.stringify(detailsSharedFallback));
+            data.details_shared_at = detailsSharedAt;
+          }
         }
       }
         
@@ -203,8 +226,12 @@ export const LeadService = {
     } else {
       await delay();
       const leads = await this.getLeads();
+      const detailsSharedAt = lead.leadType === 'Details Shared'
+        ? (lead.detailsSharedAt || new Date().toISOString())
+        : null;
       const newLead = {
         ...lead,
+        detailsSharedAt,
         id: newLeadId,
         createdDate,
         bookingHistory: [],
@@ -217,43 +244,56 @@ export const LeadService = {
   },
 
   async updateLead(updatedLead: Lead): Promise<Lead> {
+    const detailsSharedAt = updatedLead.leadType === 'Details Shared'
+      ? (updatedLead.detailsSharedAt || new Date().toISOString())
+      : null;
+    const finalLead = { ...updatedLead, detailsSharedAt };
+
     if (useSupabase) {
       // 1. Resolve garage_id from garage_assigned text (keeps it in sync if garage changes on reschedule)
       let garageId: string | null = null;
-      if (updatedLead.garageAssigned) {
+      if (finalLead.garageAssigned) {
         const { data: garageMatch } = await supabase
           .from('garages')
           .select('id')
-          .ilike('name', updatedLead.garageAssigned.trim())
+          .ilike('name', finalLead.garageAssigned.trim())
           .maybeSingle();
         if (garageMatch) garageId = garageMatch.id;
       }
 
       // 2. Update the main lead (including garage_id)
-      let dbLead: any = { ...mapLeadToDb(updatedLead), garage_id: garageId };
+      let dbLead: any = { ...mapLeadToDb(finalLead), garage_id: garageId };
       let { error: leadError } = await supabase
         .from('leads')
         .update(dbLead)
-        .eq('id', updatedLead.id);
+        .eq('id', finalLead.id);
         
-      if (leadError && (leadError.code === 'PGRST204' || leadError.message?.includes('retarget_time_slot'))) {
+      if (leadError && (leadError.code === 'PGRST204' || leadError.message?.includes('retarget_time_slot') || leadError.message?.includes('details_shared_at'))) {
         delete dbLead.retarget_time_slot;
+        delete dbLead.details_shared_at;
         const res = await supabase
           .from('leads')
           .update(dbLead)
-          .eq('id', updatedLead.id);
+          .eq('id', finalLead.id);
         leadError = res.error;
         
-        // Save to fallback overlay
-        if (!leadError && updatedLead.retargetTimeSlot) {
-          const fallbackData = JSON.parse(localStorage.getItem('mechhelp_retarget_fallback') || '{}');
-          fallbackData[updatedLead.id] = updatedLead.retargetTimeSlot;
-          localStorage.setItem('mechhelp_retarget_fallback', JSON.stringify(fallbackData));
-        } else if (!leadError && !updatedLead.retargetTimeSlot) {
-          const fallbackData = JSON.parse(localStorage.getItem('mechhelp_retarget_fallback') || '{}');
-          if (fallbackData[updatedLead.id]) {
-            delete fallbackData[updatedLead.id];
+        // Save to fallback overlays
+        if (!leadError) {
+          if (finalLead.retargetTimeSlot) {
+            const fallbackData = JSON.parse(localStorage.getItem('mechhelp_retarget_fallback') || '{}');
+            fallbackData[finalLead.id] = finalLead.retargetTimeSlot;
             localStorage.setItem('mechhelp_retarget_fallback', JSON.stringify(fallbackData));
+          }
+          if (detailsSharedAt) {
+            const detailsSharedFallback = JSON.parse(localStorage.getItem('mechhelp_details_shared_fallback') || '{}');
+            detailsSharedFallback[finalLead.id] = detailsSharedAt;
+            localStorage.setItem('mechhelp_details_shared_fallback', JSON.stringify(detailsSharedFallback));
+          } else {
+            const detailsSharedFallback = JSON.parse(localStorage.getItem('mechhelp_details_shared_fallback') || '{}');
+            if (detailsSharedFallback[finalLead.id]) {
+              delete detailsSharedFallback[finalLead.id];
+              localStorage.setItem('mechhelp_details_shared_fallback', JSON.stringify(detailsSharedFallback));
+            }
           }
         }
       }
@@ -594,22 +634,23 @@ export const SettlementService = {
     paidTo: 'garage' | 'mechhelp',
     preResolvedGarageId?: string,
     preResolvedGarageName?: string,
-    discount: number = 0
+    discount: number = 0,
+    numberPlate?: string,
+    carBrand?: string,
+    carModel?: string,
+    customerName?: string
   ): Promise<any> {
     if (useSupabase) {
-      // 1. Resolve garage_id — use pre-resolved value from dropdown if available,
-      //    otherwise fall back to DB lookup by name (legacy path).
-      let resolvedGarageId: string | null = preResolvedGarageId ?? null;
+      let resolvedGarageId = preResolvedGarageId ?? null;
 
       if (!resolvedGarageId) {
-        // Legacy fallback: fetch lead and try to resolve garage by name
-        const { data: lead, error: leadError } = await supabase
+        const { data: lead, error: leadErr } = await supabase
           .from('leads')
-          .select('id, garage_id, garage_assigned')
+          .select('garage_assigned, garage_id')
           .eq('id', bookingId)
-          .maybeSingle();
+          .single();
 
-        if (leadError) throw leadError;
+        if (leadErr) throw leadErr;
         if (!lead) throw new Error('Booking not found.');
 
         resolvedGarageId = lead.garage_id ?? null;
@@ -630,13 +671,20 @@ export const SettlementService = {
         }
       }
 
-      // 2. Patch garage_id (and name if provided) back onto the lead so future calls are clean
+      // 2. Patch garage_id and vehicle details back onto the lead
+      const leadUpdatePayload: any = {
+        garage_id: resolvedGarageId,
+        lead_type: 'Completed',
+        ...(preResolvedGarageName ? { garage_assigned: preResolvedGarageName } : {}),
+      };
+      if (customerName !== undefined && customerName.trim()) leadUpdatePayload.customer_name = customerName.trim();
+      if (carBrand !== undefined) leadUpdatePayload.car_brand = carBrand.trim();
+      if (carModel !== undefined) leadUpdatePayload.car_model = carModel.trim();
+      if (numberPlate !== undefined) leadUpdatePayload.number_plate = numberPlate.trim() || null;
+
       await supabase
         .from('leads')
-        .update({
-          garage_id: resolvedGarageId,
-          ...(preResolvedGarageName ? { garage_assigned: preResolvedGarageName } : {})
-        })
+        .update(leadUpdatePayload)
         .eq('id', bookingId);
 
       // 3. Prevent double billing
@@ -803,9 +851,13 @@ export const SettlementService = {
       localStorage.setItem(BILLING_KEY, JSON.stringify(billings));
       localStorage.setItem(LINE_ITEMS_KEY, JSON.stringify([...newLineItems, ...existingLineItems]));
 
-      // Update Lead Status to Completed
+      // Update Lead Status to Completed & Vehicle details
       lead.leadType = 'Completed';
       lead.garageAssigned = matchedGarage.name;
+      if (customerName !== undefined && customerName.trim()) lead.customerName = customerName.trim();
+      if (carBrand !== undefined) lead.carBrand = carBrand.trim();
+      if (carModel !== undefined) lead.carModel = carModel.trim();
+      if (numberPlate !== undefined) lead.numberPlate = numberPlate.trim();
       leads[leadIndex] = lead;
       localStorage.setItem(LEADS_KEY, JSON.stringify(leads));
 
@@ -824,6 +876,7 @@ export const SettlementService = {
     customerName: string,
     carBrand: string,
     carModel: string,
+    numberPlate: string,
     bookingDate: string,   // ISO date string e.g. "2024-08-12"
     garageId: string,
     garageName: string,
@@ -841,6 +894,7 @@ export const SettlementService = {
           identifier: `walkin-${Date.now()}`,
           car_brand: carBrand || 'Unknown',
           car_model: carModel || 'Unknown',
+          number_plate: numberPlate ? numberPlate.trim() : null,
           priority: 'Medium',
           lead_type: 'Completed',
           booking_type: 'Direct',
@@ -855,7 +909,7 @@ export const SettlementService = {
       if (leadErr) throw leadErr;
 
       // 2. Reuse the existing finalizeBilling with the new lead id
-      return this.finalizeBilling(newLead.id, lineItems, paidTo, garageId, garageName, discount);
+      return this.finalizeBilling(newLead.id, lineItems, paidTo, garageId, garageName, discount, numberPlate, carBrand, carModel, customerName);
 
     } else {
       // localStorage path: create a minimal lead entry, then finalize
@@ -868,6 +922,7 @@ export const SettlementService = {
         identifier: `walkin-${Date.now()}`,
         carBrand: carBrand || 'Unknown',
         carModel: carModel || 'Unknown',
+        numberPlate: numberPlate ? numberPlate.trim() : '',
         priority: 'Medium' as const,
         leadType: 'Completed' as const,
         bookingType: 'Direct',
@@ -886,7 +941,7 @@ export const SettlementService = {
       leads.unshift(newLead);
       localStorage.setItem(LEADS_KEY, JSON.stringify(leads));
 
-      return this.finalizeBilling(newLeadId, lineItems, paidTo, garageId, garageName, discount);
+      return this.finalizeBilling(newLeadId, lineItems, paidTo, garageId, garageName, discount, numberPlate, carBrand, carModel, customerName);
     }
   },
 
@@ -973,6 +1028,7 @@ export const SettlementService = {
             bookingDate: row.leads?.booking_date_time || row.created_at,
             carBrand: row.leads?.car_brand || '',
             carModel: row.leads?.car_model || '',
+            numberPlate: row.leads?.number_plate || '',
             billing: billingRow ? {
               id: billingRow.id,
               totalAmount: Number(billingRow.total_amount),
@@ -1004,7 +1060,8 @@ export const SettlementService = {
           customer_name,
           booking_date_time,
           car_brand,
-          car_model
+          car_model,
+          number_plate
         ),
         booking_billing (
           id,
@@ -1100,6 +1157,7 @@ export const SettlementService = {
             bookingDate: lead?.bookingDateTime || s.createdAt,
             carBrand: lead?.carBrand || '',
             carModel: lead?.carModel || '',
+            numberPlate: lead?.numberPlate || '',
             billing: billing ? {
               id: billing.id,
               totalAmount: Number(billing.totalAmount),
@@ -1143,7 +1201,8 @@ export const SettlementService = {
           customer_name,
           booking_date_time,
           car_brand,
-          car_model
+          car_model,
+          number_plate
         ),
         booking_billing (
           id,
@@ -1179,6 +1238,7 @@ export const SettlementService = {
             bookingDate: row.leads?.booking_date_time || row.created_at,
             carBrand: row.leads?.car_brand || '',
             carModel: row.leads?.car_model || '',
+            numberPlate: row.leads?.number_plate || '',
             billing: billingRow ? {
               id: billingRow.id,
               totalAmount: Number(billingRow.total_amount),
