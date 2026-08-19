@@ -1084,7 +1084,35 @@ export const SettlementService = {
         'total_amount,\n            discount,'
       );
 
-      // Try with discount first; fall back to without if the column doesn't exist yet.
+      const LEGACY_SELECT = `
+        id,
+        net_amount,
+        settled,
+        settled_at,
+        created_at,
+        leads (
+          id,
+          customer_name,
+          booking_date_time,
+          car_brand,
+          car_model
+        ),
+        booking_billing (
+          id,
+          total_amount,
+          paid_to,
+          status,
+          billing_line_items (
+            id,
+            name,
+            amount,
+            split_enabled,
+            mechhelp_pct,
+            garage_pct
+          )
+        )
+      `;
+
       let settlements: any[] | null = null;
 
       const { data: dataWithDiscount, error: errWithDiscount } = await supabase
@@ -1094,19 +1122,24 @@ export const SettlementService = {
         .order('created_at', { ascending: false });
 
       if (errWithDiscount) {
-        // If the error is about the discount column, retry without it
-        const msg = (errWithDiscount.message || '').toLowerCase();
-        if (msg.includes('discount') || msg.includes('column')) {
-          console.warn('booking_billing.discount column not found — falling back to query without it:', errWithDiscount.message);
-          const { data: dataWithout, error: errWithout } = await supabase
+        console.warn('Primary query failed, trying BASE_SELECT fallback:', errWithDiscount.message);
+        const { data: dataWithoutDiscount, error: errWithoutDiscount } = await supabase
+          .from('garage_settlements')
+          .select(BASE_SELECT)
+          .eq('garage_id', garageId)
+          .order('created_at', { ascending: false });
+
+        if (errWithoutDiscount) {
+          console.warn('BASE_SELECT failed, trying LEGACY_SELECT fallback:', errWithoutDiscount.message);
+          const { data: legacyData, error: legacyErr } = await supabase
             .from('garage_settlements')
-            .select(BASE_SELECT)
+            .select(LEGACY_SELECT)
             .eq('garage_id', garageId)
             .order('created_at', { ascending: false });
-          if (errWithout) throw errWithout;
-          settlements = dataWithout;
+          if (legacyErr) throw legacyErr;
+          settlements = legacyData;
         } else {
-          throw errWithDiscount;
+          settlements = dataWithoutDiscount;
         }
       } else {
         settlements = dataWithDiscount;
@@ -1257,6 +1290,35 @@ export const SettlementService = {
           };
         });
 
+      const LEGACY_SELECT = `
+        id,
+        net_amount,
+        settled,
+        settled_at,
+        created_at,
+        leads (
+          id,
+          customer_name,
+          booking_date_time,
+          car_brand,
+          car_model
+        ),
+        booking_billing (
+          id,
+          total_amount,
+          paid_to,
+          status,
+          billing_line_items (
+            id,
+            name,
+            amount,
+            split_enabled,
+            mechhelp_pct,
+            garage_pct
+          )
+        )
+      `;
+
       let rows: any[] | null = null;
 
       const { data: dataWithDiscount, error: errWithDiscount } = await supabase
@@ -1265,16 +1327,22 @@ export const SettlementService = {
         .order('created_at', { ascending: false });
 
       if (errWithDiscount) {
-        const msg = (errWithDiscount.message || '').toLowerCase();
-        if (msg.includes('discount') || msg.includes('column')) {
-          const { data: dataWithout, error: errWithout } = await supabase
+        console.warn('getAllSettlements primary query failed, trying BASE_SELECT fallback:', errWithDiscount.message);
+        const { data: dataWithoutDiscount, error: errWithoutDiscount } = await supabase
+          .from('garage_settlements')
+          .select(BASE_SELECT)
+          .order('created_at', { ascending: false });
+
+        if (errWithoutDiscount) {
+          console.warn('getAllSettlements BASE_SELECT failed, trying LEGACY_SELECT fallback:', errWithoutDiscount.message);
+          const { data: legacyData, error: legacyErr } = await supabase
             .from('garage_settlements')
-            .select(BASE_SELECT)
+            .select(LEGACY_SELECT)
             .order('created_at', { ascending: false });
-          if (errWithout) throw errWithout;
-          rows = dataWithout;
+          if (legacyErr) throw legacyErr;
+          rows = legacyData;
         } else {
-          throw errWithDiscount;
+          rows = dataWithoutDiscount;
         }
       } else {
         rows = dataWithDiscount;

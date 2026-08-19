@@ -1,18 +1,3 @@
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.8);
-  /* no backdrop-filter for minimalist */
-  display: flex;
-  /* flex-start + padding-top ensures the modal is never hidden behind the
-     sticky header (page title row + stat-card row, ~160px total). */
-  align-items: flex-start;
-  justify-content: center;
-  z-index: 1000;
-  /* top padding clears the sticky header; side/bottom padding give breathing room */
-  padding: 10rem 1rem 2rem;
-  overflow-y: auto;
-}
 
 .modal-content {
   width: 100%;

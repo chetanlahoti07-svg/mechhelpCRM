@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Plus, Trash2, ShieldAlert } from 'lucide-react';
 import { useLeadContext } from '../store/LeadContext';
 import type { Lead } from '../types';
@@ -186,7 +187,7 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
     }
   };
 
-  return (
+  return createPortal(
     <div className="modal-overlay">
       <div className="modal-content surface-panel animate-fade-in" style={{ maxWidth: '600px', maxHeight: 'calc(100vh - 12rem)', overflowY: 'auto' }}>
         <div className="modal-header">
@@ -439,6 +440,7 @@ export const CompletedModal: React.FC<Props> = ({ isOpen, onClose, lead }) => {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

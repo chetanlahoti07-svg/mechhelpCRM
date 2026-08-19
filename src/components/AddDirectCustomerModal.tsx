@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Plus, Trash2, ShieldAlert, Landmark } from 'lucide-react';
 import { useLeadContext } from '../store/LeadContext';
 
@@ -147,7 +148,7 @@ export const AddDirectCustomerModal: React.FC<Props> = ({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="modal-overlay">
       <div className="modal-content surface-panel animate-fade-in" style={{ maxWidth: '620px', maxHeight: 'calc(100vh - 12rem)', overflowY: 'auto' }}>
         {/* Header */}
@@ -243,70 +244,99 @@ export const AddDirectCustomerModal: React.FC<Props> = ({
                       <input type="checkbox" id={`split-${idx}`} checked={item.splitEnabled} onChange={e => handleItemChange(idx, 'splitEnabled', e.target.checked)} disabled={isSaving} style={{ cursor: 'pointer', width: '16px', height: '16px' }} />
                       <label htmlFor={`split-${idx}`} style={{ fontSize: '0.75rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>Split (80/20)</label>
                     </div>
-                    <button type="button" className="btn-icon" onClick={() => handleRemoveItem(idx)} disabled={isSaving || lineItems.length === 1} style={{ color: 'var(--danger)' }}>
-                      <Trash2 size={16} />
-                    </button>
+                    {lineItems.length > 1 && (
+                      <button type="button" className="btn-icon" onClick={() => handleRemoveItem(idx)} disabled={isSaving} title="Remove item">
+                        <Trash2 size={16} style={{ color: 'var(--danger)' }} />
+                      </button>
+                    )}
                   </div>
 
-                  {item.splitEnabled ? (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.25rem' }}>
+                  {item.splitEnabled && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', paddingTop: '0.25rem' }}>
                       {!item.showPctEdit ? (
-                        <button type="button" onClick={() => handleItemChange(idx, 'showPctEdit', true)} style={{ background: 'none', border: 'none', color: 'var(--info)', fontSize: '0.75rem', cursor: 'pointer', textDecoration: 'underline' }}>
-                          edit split %
-                        </button>
+                        <>
+                          <span>Split: MechHelp {item.mechhelpPct}% | Garage {item.garagePct}%</span>
+                          <button type="button" style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', padding: 0, fontSize: '0.75rem', textDecoration: 'underline' }} onClick={() => handleItemChange(idx, 'showPctEdit', true)}>
+                            edit split %
+                          </button>
+                        </>
                       ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%' }}>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>MechHelp %:</span>
-                          <input type="number" className="form-input" style={{ width: '60px', padding: '0.25rem' }} value={item.mechhelpPct} onChange={e => handleItemChange(idx, 'mechhelpPct', Number(e.target.value))} disabled={isSaving} max={100} min={0} />
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Garage %:</span>
-                          <input type="number" className="form-input" style={{ width: '60px', padding: '0.25rem' }} value={item.garagePct} onChange={e => handleItemChange(idx, 'garagePct', Number(e.target.value))} disabled={isSaving} max={100} min={0} />
-                          <button type="button" onClick={() => handleItemChange(idx, 'showPctEdit', false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', cursor: 'pointer' }}>Hide</button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <label style={{ whiteSpace: 'nowrap' }}>MH %:</label>
+                          <input type="number" min="0" max="100" style={{ width: '60px', padding: '2px 4px', fontSize: '0.75rem' }} className="form-input" value={item.mechhelpPct} onChange={e => handleItemChange(idx, 'mechhelpPct', e.target.value)} />
+                          <label style={{ whiteSpace: 'nowrap' }}>Garage %:</label>
+                          <input type="number" min="0" max="100" style={{ width: '60px', padding: '2px 4px', fontSize: '0.75rem' }} className="form-input" value={item.garagePct} onChange={e => handleItemChange(idx, 'garagePct', e.target.value)} />
+                          <button type="button" className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '0.72rem' }} onClick={() => handleItemChange(idx, 'showPctEdit', false)}>Done</button>
                         </div>
                       )}
-                      {!item.showPctEdit && (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                          MechHelp: ₹{((Number(item.amount) || 0) * item.mechhelpPct / 100).toFixed(2)} | Garage: ₹{((Number(item.amount) || 0) * item.garagePct / 100).toFixed(2)}
-                        </span>
-                      )}
+                      <span style={{ marginLeft: 'auto', fontWeight: 600 }}>
+                        MechHelp: ₹{( (Number(item.amount) || 0) * item.mechhelpPct / 100 ).toFixed(2)} | Garage: ₹{( (Number(item.amount) || 0) * item.garagePct / 100 ).toFixed(2)}
+                      </span>
                     </div>
-                  ) : (
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                      No split — full ₹{(Number(item.amount) || 0).toFixed(2)} goes to Garage
-                    </span>
                   )}
                 </div>
               ))}
             </div>
+          </div>
 
-            {/* Discount */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '1.25rem', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px dashed var(--border-light)', backgroundColor: 'var(--bg-secondary)' }}>
-              <div style={{ flex: 1 }}>
-                <label className="form-label" style={{ marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <span>Discount (₹)</span>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 500, background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-light)' }}>absorbed by MechHelp</span>
+          {/* ── Section 3: Discount & Running Total ────────────────────────── */}
+          <div style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '1.5rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', alignItems: 'center' }}>
+              <div>
+                <label className="form-label" style={{ marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  Discount (₹)
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>absorbed by MechHelp</span>
                 </label>
-                <input type="number" className="form-input" placeholder="0" min={0} value={discountStr} onChange={e => setDiscountStr(e.target.value)} disabled={isSaving} />
+                <input
+                  type="number"
+                  min="0"
+                  className="form-input"
+                  placeholder="0"
+                  value={discountStr}
+                  onChange={e => setDiscountStr(e.target.value)}
+                  disabled={isSaving}
+                />
               </div>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', maxWidth: '220px', margin: 0 }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-tertiary)', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
                 💡 Discount reduces MechHelp's share only — the garage's entitlement stays the same.
-              </p>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', padding: '0.75rem 1rem', borderRadius: '8px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-light)' }}>
-              <strong>Running Total (charged to customer):</strong>
-              <strong style={{ fontSize: '1.25rem', color: 'var(--accent-primary)' }}>₹{runningTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+            <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', borderRadius: '8px', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <strong style={{ fontSize: '0.95rem' }}>Running Total (charged to customer):</strong>
+              <strong style={{ fontSize: '1.25rem', color: 'var(--accent-primary)' }}>
+                ₹{runningTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </strong>
             </div>
           </div>
 
-          {/* ── Section 3: Who Received Payment ─────────────────────────── */}
+          {/* ── Section 4: Who Received Payment ─────────────────────────────── */}
           <div style={{ marginBottom: '1.5rem' }}>
             <h3 style={{ fontSize: '1rem', marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>3. Who Received Payment?</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '0.75rem' }}>
-              <button type="button" className={`btn ${paidTo === 'garage' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setPaidTo('garage')} disabled={isSaving} style={{ padding: '0.75rem' }}>Garage</button>
-              <button type="button" className={`btn ${paidTo === 'mechhelp' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setPaidTo('mechhelp')} disabled={isSaving} style={{ padding: '0.75rem' }}>MechHelp</button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <button
+                type="button"
+                className={`btn ${paidTo === 'garage' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ justifyContent: 'center', padding: '0.75rem', fontWeight: 600 }}
+                onClick={() => setPaidTo('garage')}
+                disabled={isSaving}
+              >
+                Garage
+              </button>
+              <button
+                type="button"
+                className={`btn ${paidTo === 'mechhelp' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ justifyContent: 'center', padding: '0.75rem', fontWeight: 600 }}
+                onClick={() => setPaidTo('mechhelp')}
+                disabled={isSaving}
+              >
+                MechHelp
+              </button>
             </div>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
-              {paidTo === 'garage' ? '💡 Garage collected payment directly from the customer.' : '💡 Customer paid MechHelp directly.'}
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem', margin: 0 }}>
+              {paidTo === 'garage'
+                ? 'Garage collected funds from customer. Settlement will calculate MechHelp entitlement.'
+                : 'MechHelp collected funds directly. Settlement will calculate Garage entitlement.'}
             </p>
           </div>
 
@@ -319,6 +349,7 @@ export const AddDirectCustomerModal: React.FC<Props> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

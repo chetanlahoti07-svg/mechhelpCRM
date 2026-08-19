@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useLeadContext } from '../store/LeadContext';
 import { ChevronLeft, Landmark, FileText, CheckCircle2, ShieldAlert, Plus, Trash2, X as XIcon, Printer, UserPlus } from 'lucide-react';
 import { calculateSettlement } from '../../shared/settlementCalculator';
@@ -1180,7 +1181,7 @@ export const GarageSettlement: React.FC = () => {
       )}
 
       {/* ── Level 3: Billing Breakdown Modal ──────────────────────────────── */}
-      {selectedSettlement && (
+      {selectedSettlement && createPortal(
         <div className="modal-overlay" style={{ zIndex: 1100 }}>
           <div
             className="modal-content surface-panel animate-fade-in"
@@ -1305,7 +1306,8 @@ export const GarageSettlement: React.FC = () => {
               <button type="button" className="btn btn-secondary" onClick={() => setSelectedSettlement(null)}>Close</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── Manage Garages Modal ──────────────────────────────────────────── */}
