@@ -5,7 +5,7 @@ import type { Lead } from '../types';
 
 export const Kanban: React.FC = () => {
   const { leads, updateLead } = useLeadContext();
-  const stages = ['Fresh Lead', 'Call Not Received', 'Details Shared', 'Retarget', 'Booked', 'Completed', 'Lost'];
+  const stages = ['Fresh Lead', 'Call Not Received', 'Details Shared', 'Shared Quotation', 'Retarget', 'Booked', 'Completed', 'Lost'];
 
   const [bookingLead, setBookingLead] = useState<Lead | null>(null);
 

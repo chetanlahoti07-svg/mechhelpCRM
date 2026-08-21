@@ -61,7 +61,7 @@ export const CallOutcomeModal: React.FC<CallOutcomeModalProps> = ({ isOpen, onCl
     }
   };
 
-  const needsDate = outcome === 'Details Shared' || outcome === 'Retarget' || outcome === 'Fresh Lead';
+  const needsDate = outcome === 'Details Shared' || outcome === 'Shared Quotation' || outcome === 'Retarget' || outcome === 'Fresh Lead';
 
   return createPortal(
     <div className="modal-overlay" style={{ zIndex: 1000 }}>
@@ -78,6 +78,7 @@ export const CallOutcomeModal: React.FC<CallOutcomeModalProps> = ({ isOpen, onCl
               <option value="Fresh Lead">Fresh Lead</option>
               <option value="Call Not Received">Call Not Received</option>
               <option value="Details Shared">Details Shared</option>
+              <option value="Shared Quotation">Shared Quotation</option>
               <option value="Retarget">Retarget</option>
               <option value="Booked">Booked</option>
               <option value="Completed">Completed</option>

@@ -28,6 +28,10 @@ export const BOOKING_STATUS_OPTIONS: Array<{ value: LeadType; config: StatusConf
     config: { label: 'Detail Shared', badgeClass: 'badge-orange', dotColor: 'var(--warning)' },
   },
   {
+    value: 'Shared Quotation',
+    config: { label: 'Shared Quotation', badgeClass: 'badge-blue', dotColor: 'var(--info)' },
+  },
+  {
     value: 'Redirected',
     config: { label: 'Redirected', badgeClass: 'badge-purple', dotColor: 'var(--vip)' },
   },

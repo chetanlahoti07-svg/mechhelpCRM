@@ -112,7 +112,7 @@ export const AllLeads: React.FC = () => {
           
           <select className="form-select" style={{ width: 'auto' }} value={filterStage} onChange={e => { setFilterStage(e.target.value); setCurrentPage(1); }}>
             <option value="">All Stages</option>
-            {['Fresh Lead', 'Call Not Received', 'Details Shared', 'Retarget', 'Booked', 'Completed', 'Lost'].map(s => (
+            {['Fresh Lead', 'Call Not Received', 'Details Shared', 'Shared Quotation', 'Retarget', 'Booked', 'Completed', 'Lost'].map(s => (
               <option key={s} value={s}>{s}</option>
             ))}
           </select>

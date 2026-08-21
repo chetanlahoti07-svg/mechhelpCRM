@@ -10,6 +10,7 @@ import {
   Star, 
   PhoneCall, 
   PhoneForwarded,
+  FileText,
   BarChart3,
   CreditCard,
   Wrench
@@ -42,6 +43,7 @@ const navSections: NavSection[] = [
       { path: '/leads/today/morning', label: 'Reminders: Morning', icon: Sun },
       { path: '/leads/today/evening', label: 'Reminders: Evening', icon: Moon },
       { path: '/leads/details-shared', label: 'Detail Shared Reminders', icon: PhoneForwarded },
+      { path: '/leads/quotation-shared', label: 'Quotation Reminder', icon: FileText },
       { path: '/sujal', label: 'Pending Call List', icon: PhoneCall },
     ]
   },

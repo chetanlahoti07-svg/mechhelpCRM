@@ -375,7 +375,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
                   setLeadType(newType);
                   if (newType !== 'Retarget') setRetargetTimeSlot(null);
                 }}>
-                  {['Fresh Lead', 'Call Not Received', 'Details Shared', 'Retarget', 'Booked', 'Completed', 'Lost'].map(t => (
+                  {['Fresh Lead', 'Call Not Received', 'Details Shared', 'Shared Quotation', 'Retarget', 'Booked', 'Completed', 'Lost'].map(t => (
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
