@@ -13,7 +13,8 @@ import {
   FileText,
   BarChart3,
   CreditCard,
-  Wrench
+  Wrench,
+  History
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -60,6 +61,7 @@ const navSections: NavSection[] = [
     items: [
       { path: '/settlements', label: 'Garage Settlement', icon: CreditCard },
       { path: '/reports', label: 'Reports', icon: BarChart3 },
+      { path: '/history', label: 'History', icon: History },
     ]
   }
 ];

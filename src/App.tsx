@@ -16,6 +16,7 @@ import { WhatsappBroadcast } from './pages/WhatsappBroadcast';
 import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
 import { GarageSettlement } from './pages/GarageSettlement';
+import { HistoryPage } from './pages/History';
 
 function App() {
   return (
@@ -40,6 +41,7 @@ function App() {
             <Route path="whatsapp" element={<WhatsappBroadcast />} />
             <Route path="settlements" element={<GarageSettlement />} />
             <Route path="reports" element={<Reports />} />
+            <Route path="history" element={<HistoryPage />} />
             <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>

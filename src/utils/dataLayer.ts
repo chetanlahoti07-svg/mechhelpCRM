@@ -947,24 +947,24 @@ export const SettlementService = {
 
   async getGaragesWithBalances(): Promise<any[]> {
     if (useSupabase) {
-      // Fetch all garages
       const { data: garages, error: garagesErr } = await supabase
         .from('garages')
         .select('id, name')
         .order('name', { ascending: true });
       if (garagesErr) throw garagesErr;
 
-      // Fetch all unsettled settlements to compute balances
-      const { data: unsettled, error: settlErr } = await supabase
+      // Fetch ALL non-deleted settlement rows (bookings AND payment records).
+      // Unsettled Balance includes rows regardless of final_settlement status;
+      // finalizing a row only affects table visibility, not balance math.
+      const { data: allRows, error: settlErr } = await supabase
         .from('garage_settlements')
-        .select('garage_id, net_amount')
-        .eq('settled', false);
+        .select('garage_id, net_amount');
       if (settlErr) throw settlErr;
 
       const balancesMap = new Map<string, number>();
-      (unsettled || []).forEach((row: any) => {
+      (allRows || []).forEach((row: any) => {
         const current = balancesMap.get(row.garage_id) || 0;
-        balancesMap.set(row.garage_id, current + Number(row.net_amount));
+        balancesMap.set(row.garage_id, current + Number(row.net_amount || 0));
       });
 
       return (garages || []).map((g: any) => ({
@@ -972,20 +972,16 @@ export const SettlementService = {
         name: g.name,
         balance: Math.round((balancesMap.get(g.id) || 0) * 100) / 100,
       }));
-
     } else {
       await delay();
-
       const settlementsData = localStorage.getItem(SETTLEMENTS_KEY);
       const settlements: any[] = settlementsData ? JSON.parse(settlementsData) : [];
 
-      // Calculate balances
       const balancesMap = new Map<string, number>();
       settlements.forEach(s => {
-        if (!s.settled) {
-          const current = balancesMap.get(s.garageId) || 0;
-          balancesMap.set(s.garageId, current + Number(s.netAmount));
-        }
+        // Unsettled Balance includes rows regardless of finalSettlement status.
+        const current = balancesMap.get(s.garageId) || 0;
+        balancesMap.set(s.garageId, current + Number(s.netAmount || 0));
       });
 
       return MOCK_GARAGES.map(g => ({
@@ -998,7 +994,6 @@ export const SettlementService = {
 
   async getGarageSettlements(garageId: string): Promise<any> {
     if (useSupabase) {
-      // Confirm garage exists
       const { data: garage, error: garageErr } = await supabase
         .from('garages')
         .select('id, name')
@@ -1007,114 +1002,65 @@ export const SettlementService = {
       if (garageErr) throw garageErr;
       if (!garage) throw new Error('Garage not found');
 
-
-      // Build a helper that maps raw Supabase rows → SettlementDetail shape.
-      // discountSupported controls whether booking_billing.discount was returned.
       const mapSettlementRows = (rows: any[]) => {
         let balance = 0;
-        const formatted = (rows || []).map((row: any) => {
-          const isSettled = !!row.settled;
-          const netAmount = Number(row.net_amount) || 0;
-          if (!isSettled) balance += netAmount;
-
-          const billingRow = Array.isArray(row.booking_billing) ? row.booking_billing[0] : row.booking_billing;
-          return {
-            id: row.id,
-            netAmount,
-            settled: isSettled,
-            settledAt: row.settled_at,
-            createdAt: row.created_at,
-            customerName: row.leads?.customer_name || 'Unknown Customer',
-            bookingDate: row.leads?.booking_date_time || row.created_at,
-            carBrand: row.leads?.car_brand || '',
-            carModel: row.leads?.car_model || '',
-            numberPlate: row.leads?.number_plate || '',
-            billing: billingRow ? {
-              id: billingRow.id,
-              totalAmount: Number(billingRow.total_amount),
-              discount: Number(billingRow.discount ?? 0),
-              paidTo: billingRow.paid_to,
-              status: billingRow.status,
-              lineItems: (billingRow.billing_line_items || []).map((item: any) => ({
-                id: item.id,
-                name: item.name,
-                amount: Number(item.amount),
-                splitEnabled: !!item.split_enabled,
-                mechhelpPct: Number(item.mechhelp_pct),
-                garagePct: Number(item.garage_pct)
-              }))
-            } : null
-          };
+        // Compute balance across ALL rows for this garage (including finalized ones)
+        (rows || []).forEach((row: any) => {
+          balance += Number(row.net_amount) || 0;
         });
+
+        // Filter active rows for table display (exclude finalized rows)
+        const formatted = (rows || [])
+          .filter((row: any) => !row.final_settlement && !row.booking_billing?.final_settlement)
+          .map((row: any) => {
+            const isSettled = !!row.settled;
+            const netAmount = Number(row.net_amount) || 0;
+
+            const billingRow = Array.isArray(row.booking_billing) ? row.booking_billing[0] : row.booking_billing;
+            const leadRow = Array.isArray(row.leads) ? row.leads[0] : row.leads;
+            const leadId = row.lead_id || leadRow?.id || row.leadId || null;
+
+            return {
+              id: row.id,
+              leadId,
+              garageId: row.garage_id || row.garageId,
+              netAmount,
+              settled: isSettled,
+              settledAt: row.settled_at,
+              createdAt: row.created_at,
+              customerName: leadRow?.customer_name || row.customerName || 'Unknown Customer',
+              bookingDate: leadRow?.booking_date_time || row.bookingDate || row.created_at,
+              carBrand: leadRow?.car_brand || row.carBrand || '',
+              carModel: leadRow?.car_model || row.carModel || '',
+              numberPlate: leadRow?.number_plate || row.numberPlate || '',
+              finalSettlement: !!row.final_settlement || !!billingRow?.final_settlement,
+              billing: billingRow ? {
+                id: billingRow.id,
+                totalAmount: Number(billingRow.total_amount),
+                discount: Number(billingRow.discount ?? 0),
+                paidTo: billingRow.paid_to,
+                status: billingRow.status,
+                finalSettlement: !!billingRow.final_settlement,
+                lineItems: (billingRow.billing_line_items || []).map((item: any) => ({
+                  id: item.id,
+                  name: item.name,
+                  amount: Number(item.amount),
+                  splitEnabled: !!item.split_enabled,
+                  mechhelpPct: Number(item.mechhelp_pct),
+                  garagePct: Number(item.garage_pct)
+                }))
+              } : null
+            };
+          });
         return { formatted, balance };
       };
 
-      const BASE_SELECT = `
-        id,
-        net_amount,
-        settled,
-        settled_at,
-        created_at,
-        leads (
-          id,
-          customer_name,
-          booking_date_time,
-          car_brand,
-          car_model,
-          number_plate
-        ),
-        booking_billing (
-          id,
-          total_amount,
-          paid_to,
-          status,
-          billing_line_items (
-            id,
-            name,
-            amount,
-            split_enabled,
-            mechhelp_pct,
-            garage_pct
-          )
-        )
-      `;
-
-      const SELECT_WITH_DISCOUNT = BASE_SELECT.replace(
-        'total_amount,',
-        'total_amount,\n            discount,'
-      );
-
-      const LEGACY_SELECT = `
-        id,
-        net_amount,
-        settled,
-        settled_at,
-        created_at,
-        leads (
-          id,
-          customer_name,
-          booking_date_time,
-          car_brand,
-          car_model
-        ),
-        booking_billing (
-          id,
-          total_amount,
-          paid_to,
-          status,
-          billing_line_items (
-            id,
-            name,
-            amount,
-            split_enabled,
-            mechhelp_pct,
-            garage_pct
-          )
-        )
-      `;
+      // final_settlement MUST be in the select so the JS filter (!row.final_settlement) can work.
+      const BASE_SELECT = `id, lead_id, garage_id, net_amount, settled, settled_at, created_at, final_settlement, leads (id, customer_name, booking_date_time, car_brand, car_model, number_plate), booking_billing (id, total_amount, paid_to, status, final_settlement, billing_line_items (id, name, amount, split_enabled, mechhelp_pct, garage_pct))`;
+      const SELECT_WITH_DISCOUNT = BASE_SELECT.replace('total_amount,', 'total_amount, discount,');
+      const LEGACY_SELECT = `id, lead_id, garage_id, net_amount, settled, settled_at, created_at, final_settlement, leads (id, customer_name, booking_date_time, car_brand, car_model), booking_billing (id, total_amount, paid_to, status, final_settlement, billing_line_items (id, name, amount, split_enabled, mechhelp_pct, garage_pct))`;
 
       let settlements: any[] | null = null;
-
       const { data: dataWithDiscount, error: errWithDiscount } = await supabase
         .from('garage_settlements')
         .select(SELECT_WITH_DISCOUNT)
@@ -1122,7 +1068,6 @@ export const SettlementService = {
         .order('created_at', { ascending: false });
 
       if (errWithDiscount) {
-        console.warn('Primary query failed, trying BASE_SELECT fallback:', errWithDiscount.message);
         const { data: dataWithoutDiscount, error: errWithoutDiscount } = await supabase
           .from('garage_settlements')
           .select(BASE_SELECT)
@@ -1130,7 +1075,6 @@ export const SettlementService = {
           .order('created_at', { ascending: false });
 
         if (errWithoutDiscount) {
-          console.warn('BASE_SELECT failed, trying LEGACY_SELECT fallback:', errWithoutDiscount.message);
           const { data: legacyData, error: legacyErr } = await supabase
             .from('garage_settlements')
             .select(LEGACY_SELECT)
@@ -1146,42 +1090,35 @@ export const SettlementService = {
       }
 
       const { formatted: formattedSettlements, balance } = mapSettlementRows(settlements || []);
-
-      return {
-        garage,
-        balance: Math.round(balance * 100) / 100,
-        settlements: formattedSettlements
-      };
-
-
+      return { garage, balance: Math.round(balance * 100) / 100, settlements: formattedSettlements };
     } else {
       await delay();
-
-      // Find mock garage name
       const garage = MOCK_GARAGES.find(g => g.id === garageId);
       if (!garage) throw new Error('Garage not found');
-
-      // Fetch local database structures
       const settlementsData = localStorage.getItem(SETTLEMENTS_KEY);
       const settlements: any[] = settlementsData ? JSON.parse(settlementsData) : [];
-
       const billingsData = localStorage.getItem(BILLING_KEY);
       const billings: any[] = billingsData ? JSON.parse(billingsData) : [];
-
       const lineItemsData = localStorage.getItem(LINE_ITEMS_KEY);
       const lineItems: any[] = lineItemsData ? JSON.parse(lineItemsData) : [];
-
       const leads = await LeadService.getLeads();
 
-      const garageSettlements = settlements
-        .filter(s => s.garageId === garageId)
+      const allGarageSettlements = settlements.filter(s => s.garageId === garageId);
+
+      // Compute balance across ALL rows for this garage (including finalized ones)
+      const balance = allGarageSettlements.reduce((sum, s) => sum + (Number(s.netAmount) || 0), 0);
+
+      // Filter active (non-finalized) rows for regular table view
+      const activeSettlements = allGarageSettlements
+        .filter(s => !s.finalSettlement)
         .map(s => {
           const billing = billings.find(b => b.id === s.billingId);
           const lead = leads.find(l => l.id === s.leadId);
           const billingLineItems = lineItems.filter(li => li.billingId === s.billingId);
-
           return {
             id: s.id,
+            leadId: s.leadId,
+            garageId: s.garageId,
             netAmount: Number(s.netAmount),
             settled: !!s.settled,
             settledAt: s.settledAt,
@@ -1191,12 +1128,14 @@ export const SettlementService = {
             carBrand: lead?.carBrand || '',
             carModel: lead?.carModel || '',
             numberPlate: lead?.numberPlate || '',
+            finalSettlement: !!s.finalSettlement || !!billing?.finalSettlement,
             billing: billing ? {
               id: billing.id,
               totalAmount: Number(billing.totalAmount),
               discount: Number(billing.discount ?? 0),
               paidTo: billing.paidTo,
               status: billing.status,
+              finalSettlement: !!billing.finalSettlement,
               lineItems: billingLineItems.map(li => ({
                 id: li.id,
                 name: li.name,
@@ -1209,132 +1148,69 @@ export const SettlementService = {
           };
         });
 
-      // Compute balance
-      const balance = garageSettlements
-        .filter(s => !s.settled)
-        .reduce((sum, s) => sum + s.netAmount, 0);
-
-      return {
-        garage,
-        balance: Math.round(balance * 100) / 100,
-        settlements: garageSettlements
-      };
+      return { garage, balance: Math.round(balance * 100) / 100, settlements: activeSettlements };
     }
   },
+
   async getAllSettlements(): Promise<any> {
     if (useSupabase) {
-      const BASE_SELECT = `
-        id,
-        net_amount,
-        settled,
-        settled_at,
-        created_at,
-        leads (
-          id,
-          customer_name,
-          booking_date_time,
-          car_brand,
-          car_model,
-          number_plate
-        ),
-        booking_billing (
-          id,
-          total_amount,
-          paid_to,
-          status,
-          billing_line_items (
-            id,
-            name,
-            amount,
-            split_enabled,
-            mechhelp_pct,
-            garage_pct
-          )
-        )
-      `;
-
-      const SELECT_WITH_DISCOUNT = BASE_SELECT.replace(
-        'total_amount,',
-        'total_amount,\n            discount,'
-      );
+      // final_settlement must be in the select so the filter can work correctly.
+      const BASE_SELECT = `id, lead_id, garage_id, net_amount, settled, settled_at, created_at, final_settlement, leads (id, customer_name, booking_date_time, car_brand, car_model, number_plate), booking_billing (id, total_amount, paid_to, status, final_settlement, billing_line_items (id, name, amount, split_enabled, mechhelp_pct, garage_pct))`;
+      const SELECT_WITH_DISCOUNT = BASE_SELECT.replace('total_amount,', 'total_amount, discount,');
+      const LEGACY_SELECT = `id, lead_id, garage_id, net_amount, settled, settled_at, created_at, final_settlement, leads (id, customer_name, booking_date_time, car_brand, car_model), booking_billing (id, total_amount, paid_to, status, final_settlement, billing_line_items (id, name, amount, split_enabled, mechhelp_pct, garage_pct))`;
 
       const mapRows = (rows: any[]) =>
-        (rows || []).map((row: any) => {
-          const billingRow = Array.isArray(row.booking_billing) ? row.booking_billing[0] : row.booking_billing;
-          return {
-            id: row.id,
-            netAmount: Number(row.net_amount) || 0,
-            settled: !!row.settled,
-            settledAt: row.settled_at,
-            createdAt: row.created_at,
-            customerName: row.leads?.customer_name || 'Unknown Customer',
-            bookingDate: row.leads?.booking_date_time || row.created_at,
-            carBrand: row.leads?.car_brand || '',
-            carModel: row.leads?.car_model || '',
-            numberPlate: row.leads?.number_plate || '',
-            billing: billingRow ? {
-              id: billingRow.id,
-              totalAmount: Number(billingRow.total_amount),
-              discount: Number(billingRow.discount ?? 0),
-              paidTo: billingRow.paid_to,
-              status: billingRow.status,
-              lineItems: (billingRow.billing_line_items || []).map((item: any) => ({
-                id: item.id,
-                name: item.name,
-                amount: Number(item.amount),
-                splitEnabled: !!item.split_enabled,
-                mechhelpPct: Number(item.mechhelp_pct),
-                garagePct: Number(item.garage_pct)
-              }))
-            } : null
-          };
-        });
-
-      const LEGACY_SELECT = `
-        id,
-        net_amount,
-        settled,
-        settled_at,
-        created_at,
-        leads (
-          id,
-          customer_name,
-          booking_date_time,
-          car_brand,
-          car_model
-        ),
-        booking_billing (
-          id,
-          total_amount,
-          paid_to,
-          status,
-          billing_line_items (
-            id,
-            name,
-            amount,
-            split_enabled,
-            mechhelp_pct,
-            garage_pct
-          )
-        )
-      `;
+        (rows || [])
+          .filter((row: any) => !row.final_settlement && !row.booking_billing?.final_settlement)
+          .map((row: any) => {
+            const billingRow = Array.isArray(row.booking_billing) ? row.booking_billing[0] : row.booking_billing;
+            const leadRow = Array.isArray(row.leads) ? row.leads[0] : row.leads;
+            const leadId = row.lead_id || leadRow?.id || row.leadId || null;
+            return {
+              id: row.id,
+              leadId,
+              garageId: row.garage_id || row.garageId,
+              netAmount: Number(row.net_amount) || 0,
+              settled: !!row.settled,
+              settledAt: row.settled_at,
+              createdAt: row.created_at,
+              customerName: leadRow?.customer_name || row.customerName || 'Unknown Customer',
+              bookingDate: leadRow?.booking_date_time || row.bookingDate || row.created_at,
+              carBrand: leadRow?.car_brand || row.carBrand || '',
+              carModel: leadRow?.car_model || row.carModel || '',
+              numberPlate: leadRow?.number_plate || row.numberPlate || '',
+              finalSettlement: !!row.final_settlement || !!billingRow?.final_settlement,
+              billing: billingRow ? {
+                id: billingRow.id,
+                totalAmount: Number(billingRow.total_amount),
+                discount: Number(billingRow.discount ?? 0),
+                paidTo: billingRow.paid_to,
+                status: billingRow.status,
+                finalSettlement: !!billingRow.final_settlement,
+                lineItems: (billingRow.billing_line_items || []).map((item: any) => ({
+                  id: item.id,
+                  name: item.name,
+                  amount: Number(item.amount),
+                  splitEnabled: !!item.split_enabled,
+                  mechhelpPct: Number(item.mechhelp_pct),
+                  garagePct: Number(item.garage_pct)
+                }))
+              } : null
+            };
+          });
 
       let rows: any[] | null = null;
-
       const { data: dataWithDiscount, error: errWithDiscount } = await supabase
         .from('garage_settlements')
         .select(SELECT_WITH_DISCOUNT)
         .order('created_at', { ascending: false });
 
       if (errWithDiscount) {
-        console.warn('getAllSettlements primary query failed, trying BASE_SELECT fallback:', errWithDiscount.message);
         const { data: dataWithoutDiscount, error: errWithoutDiscount } = await supabase
           .from('garage_settlements')
           .select(BASE_SELECT)
           .order('created_at', { ascending: false });
-
         if (errWithoutDiscount) {
-          console.warn('getAllSettlements BASE_SELECT failed, trying LEGACY_SELECT fallback:', errWithoutDiscount.message);
           const { data: legacyData, error: legacyErr } = await supabase
             .from('garage_settlements')
             .select(LEGACY_SELECT)
@@ -1347,105 +1223,381 @@ export const SettlementService = {
       } else {
         rows = dataWithDiscount;
       }
-
       return { settlements: mapRows(rows || []) };
-
     } else {
       await delay();
-
       const settlementsData = localStorage.getItem(SETTLEMENTS_KEY);
       const settlements: any[] = settlementsData ? JSON.parse(settlementsData) : [];
-
       const billingsData = localStorage.getItem(BILLING_KEY);
       const billings: any[] = billingsData ? JSON.parse(billingsData) : [];
-
       const lineItemsData = localStorage.getItem(LINE_ITEMS_KEY);
       const lineItems: any[] = lineItemsData ? JSON.parse(lineItemsData) : [];
-
       const leads = await LeadService.getLeads();
 
-      const allSettlements = settlements.map(s => {
-        const billing = billings.find(b => b.id === s.billingId);
-        const lead = leads.find(l => l.id === s.leadId);
-        const billingLineItems = lineItems.filter(li => li.billingId === s.billingId);
-
-        return {
-          id: s.id,
-          netAmount: Number(s.netAmount),
-          settled: !!s.settled,
-          settledAt: s.settledAt,
-          createdAt: s.createdAt,
-          customerName: lead?.customerName || 'Unknown Customer',
-          bookingDate: lead?.bookingDateTime || s.createdAt,
-          carBrand: lead?.carBrand || '',
-          carModel: lead?.carModel || '',
-          billing: billing ? {
-            id: billing.id,
-            totalAmount: Number(billing.totalAmount),
-            discount: Number(billing.discount ?? 0),
-            paidTo: billing.paidTo,
-            status: billing.status,
-            lineItems: billingLineItems.map(li => ({
-              id: li.id,
-              name: li.name,
-              amount: Number(li.amount),
-              splitEnabled: !!li.splitEnabled,
-              mechhelpPct: Number(li.mechhelpPct),
-              garagePct: Number(li.garagePct)
-            }))
-          } : null
-        };
-      });
-
+      const allSettlements = settlements
+        .filter(s => !s.finalSettlement)
+        .map(s => {
+          const billing = billings.find(b => b.id === s.billingId);
+          const lead = leads.find(l => l.id === s.leadId);
+          const billingLineItems = lineItems.filter(li => li.billingId === s.billingId);
+          return {
+            id: s.id,
+            leadId: s.leadId,
+            garageId: s.garageId,
+            netAmount: Number(s.netAmount),
+            settled: !!s.settled,
+            settledAt: s.settledAt,
+            createdAt: s.createdAt,
+            customerName: lead?.customerName || 'Unknown Customer',
+            bookingDate: lead?.bookingDateTime || s.createdAt,
+            carBrand: lead?.carBrand || '',
+            carModel: lead?.carModel || '',
+            numberPlate: lead?.numberPlate || '',
+            finalSettlement: !!s.finalSettlement || !!billing?.finalSettlement,
+            billing: billing ? {
+              id: billing.id,
+              totalAmount: Number(billing.totalAmount),
+              discount: Number(billing.discount ?? 0),
+              paidTo: billing.paidTo,
+              status: billing.status,
+              finalSettlement: !!billing.finalSettlement,
+              lineItems: billingLineItems.map(li => ({
+                id: li.id,
+                name: li.name,
+                amount: Number(li.amount),
+                splitEnabled: !!li.splitEnabled,
+                mechhelpPct: Number(li.mechhelpPct),
+                garagePct: Number(li.garagePct)
+              }))
+            } : null
+          };
+        });
       return { settlements: allSettlements };
+    }
+  },
+
+  async getHistorySettlements(): Promise<any[]> {
+    if (useSupabase) {
+      // final_settlement must be fetched so the filter (=== true) below can match archived rows.
+      const SELECT_HISTORY = `id, lead_id, garage_id, net_amount, settled, settled_at, created_at, final_settlement, garages (id, name), leads (id, customer_name, booking_date_time, car_brand, car_model, number_plate), booking_billing (id, total_amount, paid_to, status, final_settlement, billing_line_items (id, name, amount, split_enabled, mechhelp_pct, garage_pct))`;
+      let rows: any[] | null = null;
+      const { data, error } = await supabase
+        .from('garage_settlements')
+        .select(SELECT_HISTORY)
+        .eq('final_settlement', true)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        const LEGACY_HISTORY_SELECT = SELECT_HISTORY.replace('discount,', '');
+        const { data: legacyData, error: legacyErr } = await supabase
+          .from('garage_settlements')
+          .select(LEGACY_HISTORY_SELECT)
+          .eq('final_settlement', true)
+          .order('created_at', { ascending: false });
+        if (legacyErr) throw legacyErr;
+        rows = legacyData;
+      } else {
+        rows = data;
+      }
+      return (rows || [])
+        .filter((row: any) => row.final_settlement === true || row.booking_billing?.final_settlement === true)
+        .map((row: any) => {
+          const billingRow = Array.isArray(row.booking_billing) ? row.booking_billing[0] : row.booking_billing;
+          const garageRow = Array.isArray(row.garages) ? row.garages[0] : row.garages;
+          const leadRow = Array.isArray(row.leads) ? row.leads[0] : row.leads;
+          const leadId = row.lead_id || leadRow?.id || row.leadId || null;
+          return {
+            id: row.id,
+            leadId,
+            garageId: row.garage_id,
+            garageName: garageRow?.name || 'Partner Garage',
+            netAmount: Number(row.net_amount) || 0,
+            settled: !!row.settled,
+            settledAt: row.settled_at,
+            createdAt: row.created_at,
+            customerName: leadRow?.customer_name || row.customerName || 'Unknown Customer',
+            bookingDate: leadRow?.booking_date_time || row.bookingDate || row.created_at,
+            carBrand: leadRow?.car_brand || row.carBrand || '',
+            carModel: leadRow?.car_model || row.carModel || '',
+            numberPlate: leadRow?.number_plate || row.numberPlate || '',
+            finalSettlement: true,
+            billing: billingRow ? {
+              id: billingRow.id,
+              totalAmount: Number(billingRow.total_amount),
+              discount: Number(billingRow.discount ?? 0),
+              paidTo: billingRow.paid_to,
+              status: billingRow.status,
+              finalSettlement: true,
+              lineItems: (billingRow.billing_line_items || []).map((item: any) => ({
+                id: item.id,
+                name: item.name,
+                amount: Number(item.amount),
+                splitEnabled: !!item.split_enabled,
+                mechhelpPct: Number(item.mechhelp_pct),
+                garagePct: Number(item.garage_pct)
+              }))
+            } : null
+          };
+        });
+    } else {
+      await delay();
+      const settlementsData = localStorage.getItem(SETTLEMENTS_KEY);
+      const settlements: any[] = settlementsData ? JSON.parse(settlementsData) : [];
+      const billingsData = localStorage.getItem(BILLING_KEY);
+      const billings: any[] = billingsData ? JSON.parse(billingsData) : [];
+      const lineItemsData = localStorage.getItem(LINE_ITEMS_KEY);
+      const lineItems: any[] = lineItemsData ? JSON.parse(lineItemsData) : [];
+      const leads = await LeadService.getLeads();
+
+      return settlements
+        .filter(s => s.finalSettlement)
+        .map(s => {
+          const billing = billings.find(b => b.id === s.billingId);
+          const lead = leads.find(l => l.id === s.leadId);
+          const garage = MOCK_GARAGES.find(g => g.id === s.garageId);
+          const billingLineItems = lineItems.filter(li => li.billingId === s.billingId);
+          return {
+            id: s.id,
+            leadId: s.leadId,
+            garageId: s.garageId,
+            garageName: garage?.name || 'Partner Garage',
+            netAmount: Number(s.netAmount),
+            settled: !!s.settled,
+            settledAt: s.settledAt,
+            createdAt: s.createdAt,
+            customerName: lead?.customerName || 'Unknown Customer',
+            bookingDate: lead?.bookingDateTime || s.createdAt,
+            carBrand: lead?.carBrand || '',
+            carModel: lead?.carModel || '',
+            numberPlate: lead?.numberPlate || '',
+            finalSettlement: true,
+            billing: billing ? {
+              id: billing.id,
+              totalAmount: Number(billing.totalAmount),
+              discount: Number(billing.discount ?? 0),
+              paidTo: billing.paidTo,
+              status: billing.status,
+              finalSettlement: true,
+              lineItems: billingLineItems.map(li => ({
+                id: li.id,
+                name: li.name,
+                amount: Number(li.amount),
+                splitEnabled: !!li.splitEnabled,
+                mechhelpPct: Number(li.mechhelpPct),
+                garagePct: Number(li.garagePct)
+              }))
+            } : null
+          };
+        });
+    }
+  },
+
+  async markFinalSettlement(settlementId: string, billingId?: string): Promise<void> {
+    if (useSupabase) {
+      if (billingId) {
+        await supabase.from('booking_billing').update({ final_settlement: true }).eq('id', billingId);
+      }
+      await supabase.from('garage_settlements').update({ final_settlement: true }).eq('id', settlementId);
+    } else {
+      await delay();
+      const settlementsData = localStorage.getItem(SETTLEMENTS_KEY);
+      if (settlementsData) {
+        const list: any[] = JSON.parse(settlementsData);
+        const updated = list.map(s => s.id === settlementId ? { ...s, finalSettlement: true } : s);
+        localStorage.setItem(SETTLEMENTS_KEY, JSON.stringify(updated));
+      }
+      if (billingId) {
+        const billingsData = localStorage.getItem(BILLING_KEY);
+        if (billingsData) {
+          const list: any[] = JSON.parse(billingsData);
+          const updated = list.map(b => b.id === billingId ? { ...b, finalSettlement: true } : b);
+          localStorage.setItem(BILLING_KEY, JSON.stringify(updated));
+        }
+      }
+    }
+  },
+
+  async deleteSettlement(settlementId: string, billingId?: string, leadId?: string): Promise<void> {
+    if (useSupabase) {
+      const { error: settlErr } = await supabase.from('garage_settlements').delete().eq('id', settlementId);
+      if (settlErr) console.warn('Delete garage_settlement error:', settlErr);
+      if (billingId) {
+        const { error: billErr } = await supabase.from('booking_billing').delete().eq('id', billingId);
+        if (billErr) console.warn('Delete booking_billing error:', billErr);
+      }
+      if (leadId) {
+        const { error: leadErr } = await supabase.from('leads').delete().eq('id', leadId);
+        if (leadErr) console.warn('Delete lead error:', leadErr);
+      }
+    } else {
+      await delay();
+      const settlementsData = localStorage.getItem(SETTLEMENTS_KEY);
+      if (settlementsData) {
+        const list: any[] = JSON.parse(settlementsData);
+        localStorage.setItem(SETTLEMENTS_KEY, JSON.stringify(list.filter(s => s.id !== settlementId)));
+      }
+      if (billingId) {
+        const billingsData = localStorage.getItem(BILLING_KEY);
+        if (billingsData) {
+          const list: any[] = JSON.parse(billingsData);
+          localStorage.setItem(BILLING_KEY, JSON.stringify(list.filter(b => b.id !== billingId)));
+        }
+        const lineItemsData = localStorage.getItem(LINE_ITEMS_KEY);
+        if (lineItemsData) {
+          const list: any[] = JSON.parse(lineItemsData);
+          localStorage.setItem(LINE_ITEMS_KEY, JSON.stringify(list.filter(li => li.billingId !== billingId)));
+        }
+      }
+      if (leadId) {
+        const leadsData = localStorage.getItem(LEADS_KEY);
+        if (leadsData) {
+          const list: any[] = JSON.parse(leadsData);
+          localStorage.setItem(LEADS_KEY, JSON.stringify(list.filter(l => l.id !== leadId)));
+        }
+      }
+    }
+  },
+
+  async updateSettlementBilling(
+    settlementId: string,
+    billingId: string,
+    leadId: string | null,
+    data: any
+  ): Promise<void> {
+    const calc = calculateSettlement(data.lineItems, data.paidTo, data.discount);
+    if (useSupabase) {
+      if (leadId) {
+        const { error: leadErr } = await supabase.from('leads').update({
+          customer_name: data.customerName,
+          car_brand: data.carBrand,
+          car_model: data.carModel,
+          number_plate: data.numberPlate || null,
+          booking_date_time: data.bookingDate ? new Date(data.bookingDate).toISOString() : new Date().toISOString(),
+          garage_id: data.garageId || null,
+          garage_assigned: data.garageName || null,
+        }).eq('id', leadId);
+        if (leadErr) {
+          console.error('Failed to update lead:', leadErr);
+          throw new Error(`Failed to update lead: ${leadErr.message}`);
+        }
+      }
+      const { error: billErr } = await supabase.from('booking_billing').update({
+        total_amount: calc.totalAmount,
+        discount: calc.discount,
+        paid_to: data.paidTo,
+        garage_id: data.garageId || null,
+      }).eq('id', billingId);
+      if (billErr) {
+        console.error('Failed to update booking_billing:', billErr);
+        throw new Error(`Failed to update billing: ${billErr.message}`);
+      }
+
+      const { error: delLineErr } = await supabase.from('billing_line_items').delete().eq('billing_id', billingId);
+      if (delLineErr) console.warn('Delete billing_line_items error:', delLineErr);
+
+      if (data.lineItems.length > 0) {
+        const inserts = data.lineItems.map((item: any) => ({
+          billing_id: billingId,
+          name: item.name,
+          amount: Number(item.amount) || 0,
+          split_enabled: item.splitEnabled,
+          mechhelp_pct: item.splitEnabled ? item.mechhelpPct : 0,
+          garage_pct: item.splitEnabled ? item.garagePct : 100,
+        }));
+        const { error: insLineErr } = await supabase.from('billing_line_items').insert(inserts);
+        if (insLineErr) {
+          console.error('Failed to insert billing_line_items:', insLineErr);
+          throw new Error(`Failed to update line items: ${insLineErr.message}`);
+        }
+      }
+      const { error: settlErr } = await supabase.from('garage_settlements').update({
+        net_amount: calc.netAmount,
+        garage_id: data.garageId || null,
+      }).eq('id', settlementId);
+      if (settlErr) {
+        console.error('Failed to update garage_settlements:', settlErr);
+        throw new Error(`Failed to update settlement balance: ${settlErr.message}`);
+      }
+    } else {
+      await delay();
+      if (leadId) {
+        const leadsData = localStorage.getItem(LEADS_KEY);
+        if (leadsData) {
+          const list: any[] = JSON.parse(leadsData);
+          const updated = list.map(l => l.id === leadId ? {
+            ...l,
+            customerName: data.customerName,
+            carBrand: data.carBrand,
+            carModel: data.carModel,
+            numberPlate: data.numberPlate,
+            bookingDateTime: data.bookingDate ? new Date(data.bookingDate).toISOString() : l.bookingDateTime,
+            garageId: data.garageId,
+            garageAssigned: data.garageName,
+          } : l);
+          localStorage.setItem(LEADS_KEY, JSON.stringify(updated));
+        }
+      }
+      const billingsData = localStorage.getItem(BILLING_KEY);
+      if (billingsData) {
+        const list: any[] = JSON.parse(billingsData);
+        const updated = list.map(b => b.id === billingId ? {
+          ...b,
+          totalAmount: calc.totalAmount,
+          discount: calc.discount,
+          paidTo: data.paidTo,
+          garageId: data.garageId,
+        } : b);
+        localStorage.setItem(BILLING_KEY, JSON.stringify(updated));
+      }
+      const lineItemsData = localStorage.getItem(LINE_ITEMS_KEY);
+      const list: any[] = lineItemsData ? JSON.parse(lineItemsData) : [];
+      const filtered = list.filter(li => li.billingId !== billingId);
+      const newItems = data.lineItems.map((item: any) => ({
+        id: uuidv4(),
+        billingId,
+        name: item.name,
+        amount: item.amount,
+        splitEnabled: item.splitEnabled,
+        mechhelpPct: item.splitEnabled ? item.mechhelpPct : 0,
+        garagePct: item.splitEnabled ? item.garagePct : 100,
+      }));
+      localStorage.setItem(LINE_ITEMS_KEY, JSON.stringify([...filtered, ...newItems]));
+      const settlementsData = localStorage.getItem(SETTLEMENTS_KEY);
+      if (settlementsData) {
+        const slist: any[] = JSON.parse(settlementsData);
+        const updated = slist.map(s => s.id === settlementId ? {
+          ...s,
+          netAmount: calc.netAmount,
+          garageId: data.garageId,
+        } : s);
+        localStorage.setItem(SETTLEMENTS_KEY, JSON.stringify(updated));
+      }
     }
   },
 
   async settleGarage(garageId: string): Promise<any> {
     if (useSupabase) {
       const now = new Date().toISOString();
-      const { data, error } = await supabase
-        .from('garage_settlements')
-        .update({ settled: true, settled_at: now })
-        .eq('garage_id', garageId)
-        .eq('settled', false)
-        .select('*');
+      const { data, error } = await supabase.from('garage_settlements').update({ settled: true, settled_at: now }).eq('garage_id', garageId).eq('settled', false).select('*');
       if (error) throw error;
-
       return { success: true, count: data?.length || 0 };
-
     } else {
       await delay();
-
       const settlementsData = localStorage.getItem(SETTLEMENTS_KEY);
       const settlements: any[] = settlementsData ? JSON.parse(settlementsData) : [];
-
       let count = 0;
       const updatedSettlements = settlements.map(s => {
         if (s.garageId === garageId && !s.settled) {
           count++;
-          return {
-            ...s,
-            settled: true,
-            settledAt: new Date().toISOString()
-          };
+          return { ...s, settled: true, settledAt: new Date().toISOString() };
         }
         return s;
       });
-
       localStorage.setItem(SETTLEMENTS_KEY, JSON.stringify(updatedSettlements));
-
-      return {
-        success: true,
-        count
-      };
+      return { success: true, count };
     }
   },
 
-  // Record a partial cash payment against a garage's outstanding balance.
-  // Inserts a credit row into garage_settlements with a sign that offsets the balance based on direction:
-  // - 'mechhelp_to_garage' (we pay garage): net_amount is positive (+amount), reducing what we owe (or increasing what we are owed).
-  // - 'garage_to_mechhelp' (garage pays us): net_amount is negative (-amount), reducing what garage owes (or increasing what we owe).
   async recordPayment(
     garageId: string,
     amount: number,
@@ -1453,24 +1605,19 @@ export const SettlementService = {
     _currentBalance?: number
   ): Promise<any> {
     if (amount <= 0) throw new Error('Payment amount must be greater than zero.');
-
     const signedAmount = Math.abs(amount);
     const netAmount = direction === 'mechhelp_to_garage' ? signedAmount : -signedAmount;
-
     if (useSupabase) {
-      const { error } = await supabase
-        .from('garage_settlements')
-        .insert({
-          garage_id: garageId,
-          billing_id: null,   // payment row — not tied to a specific booking
-          lead_id: null,
-          net_amount: netAmount,
-          settled: true,      // payment rows are immediately "settled" (they are the settlement)
-          settled_at: new Date().toISOString(),
-        });
+      const { error } = await supabase.from('garage_settlements').insert({
+        garage_id: garageId,
+        billing_id: null,
+        lead_id: null,
+        net_amount: netAmount,
+        settled: true,
+        settled_at: new Date().toISOString(),
+      });
       if (error) throw error;
       return { success: true, amount: signedAmount, netAmount, direction };
-
     } else {
       await delay();
       const settlementsData = localStorage.getItem(SETTLEMENTS_KEY);
@@ -1492,17 +1639,11 @@ export const SettlementService = {
     }
   },
 
-  // Add a new garage (Supabase: INSERT; offline: push to MOCK_GARAGES).
   async addGarage(name: string): Promise<{ id: string; name: string }> {
     const trimmed = name.trim();
     if (!trimmed) throw new Error('Garage name cannot be empty.');
-
     if (useSupabase) {
-      const { data, error } = await supabase
-        .from('garages')
-        .insert({ name: trimmed })
-        .select('id, name')
-        .single();
+      const { data, error } = await supabase.from('garages').insert({ name: trimmed }).select('id, name').single();
       if (error) throw error;
       return data;
     } else {
@@ -1516,27 +1657,14 @@ export const SettlementService = {
     }
   },
 
-  // Delete a garage (or soft-delete if is_active exists). Guards against nonzero balance.
   async removeGarage(garageId: string, currentBalance: number): Promise<void> {
     if (Math.round(currentBalance * 100) !== 0) {
-      throw new Error(
-        `Cannot remove this garage — it has an outstanding balance of ₹${Math.abs(currentBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}. Settle the balance first.`
-      );
+      throw new Error(`Cannot remove this garage — it has an outstanding balance of ₹${Math.abs(currentBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}. Settle the balance first.`);
     }
-
     if (useSupabase) {
-      // Try soft-delete first if is_active column exists, fallback to delete
-      const { error } = await supabase
-        .from('garages')
-        .update({ is_active: false })
-        .eq('id', garageId);
-      
+      const { error } = await supabase.from('garages').update({ is_active: false }).eq('id', garageId);
       if (error) {
-        // Fallback if is_active column does not exist on Supabase table
-        const { error: deleteErr } = await supabase
-          .from('garages')
-          .delete()
-          .eq('id', garageId);
+        const { error: deleteErr } = await supabase.from('garages').delete().eq('id', garageId);
         if (deleteErr) throw deleteErr;
       }
     } else {

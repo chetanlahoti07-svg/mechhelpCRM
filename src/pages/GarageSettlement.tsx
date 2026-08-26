@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useLeadContext } from '../store/LeadContext';
-import { ChevronLeft, Landmark, FileText, CheckCircle2, ShieldAlert, Plus, Trash2, X as XIcon, Printer, UserPlus } from 'lucide-react';
+import { ChevronLeft, Landmark, FileText, CheckCircle2, ShieldAlert, Plus, Trash2, X as XIcon, Printer, UserPlus, Pencil } from 'lucide-react';
 import { calculateSettlement } from '../../shared/settlementCalculator';
 import { AddDirectCustomerModal } from '../components/AddDirectCustomerModal';
+import { EditBookingModal } from '../components/EditBookingModal';
+import { ConfirmationModal } from '../components/ConfirmationModal';
+import { ToastNotificationContainer, type ToastData } from '../components/ToastNotification';
 import './GarageSettlement.css';
 
 interface GarageItem {
@@ -14,6 +17,7 @@ interface GarageItem {
 
 interface SettlementDetail {
   id: string;
+  leadId?: string;
   netAmount: number;
   settled: boolean;
   settledAt?: string;
@@ -341,12 +345,13 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({ garageName, cur
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export const GarageSettlement: React.FC = () => {
-  const { getGaragesWithBalances, getGarageSettlements, getAllSettlements, settleGarage, addGarage, removeGarage, recordPayment } = useLeadContext();
+  const { getGaragesWithBalances, getGarageSettlements, getAllSettlements, settleGarage, addGarage, removeGarage, recordPayment, markFinalSettlement, deleteSettlement } = useLeadContext();
 
   // Navigation states
   const [activeGarageId, setActiveGarageId] = useState<string | null>(null);
   const [activeGarageName, setActiveGarageName] = useState<string>('');
   const [selectedSettlement, setSelectedSettlement] = useState<SettlementDetail | null>(null);
+  const [editingSettlement, setEditingSettlement] = useState<SettlementDetail | null>(null);
 
   // Whether the currently active view is the MechHelp master ledger (not a real garage)
   const isMasterLedger = activeGarageId === 'MECHHELP_MASTER';
@@ -363,6 +368,32 @@ export const GarageSettlement: React.FC = () => {
   const [showManageModal, setShowManageModal]     = useState(false);
   const [showPaymentModal, setShowPaymentModal]   = useState(false);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+
+  // Toast & Custom Confirmation Modal states
+  const [toasts, setToasts] = useState<ToastData[]>([]);
+  const [confirmModalState, setConfirmModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: React.ReactNode;
+    confirmText?: string;
+    cancelText?: string;
+    variant?: 'danger' | 'primary' | 'warning' | 'success';
+    onConfirm: () => Promise<void>;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: async () => {},
+  });
+
+  const addToast = (toast: Omit<ToastData, 'id'>) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts(prev => [...prev, { ...toast, id }]);
+  };
+
+  const dismissToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
 
   // Loading & error states
   const [loadingGarages, setLoadingGarages] = useState(true);
@@ -474,6 +505,10 @@ export const GarageSettlement: React.FC = () => {
       setGarageBalance(data.balance);
       await loadGarages();
       setShowPaymentModal(false);
+      addToast({
+        type: 'success',
+        title: '✓ Payment recorded successfully',
+      });
     } catch (err: any) {
       throw err; // bubble up to modal's error handler
     } finally {
@@ -484,7 +519,11 @@ export const GarageSettlement: React.FC = () => {
   const handlePrintSettlement = (settlement: SettlementDetail) => {
     const printWindow = window.open('', '_blank', 'width=850,height=950');
     if (!printWindow) {
-      alert('Please allow popups to generate and print the settlement PDF statement.');
+      addToast({
+        type: 'warning',
+        title: 'Popup Blocked',
+        message: 'Please allow popups to generate and print the settlement PDF statement.',
+      });
       return;
     }
 
@@ -538,7 +577,7 @@ export const GarageSettlement: React.FC = () => {
         <body>
           <div class="header">
             <div>
-              <div class="logo">MECHHELP CRM</div>
+              <div class="logo">MECHHELP PARTNERS</div>
               <div class="subtitle">Vehicle Booking Billing & Settlement Statement</div>
             </div>
             <div class="meta">
@@ -631,26 +670,122 @@ export const GarageSettlement: React.FC = () => {
     }, 250);
   };
 
-  const handleSettleAll = async () => {
+  const handleFinalSettlement = (settlement: SettlementDetail) => {
+    if (!settlement) return;
+    setConfirmModalState({
+      isOpen: true,
+      title: 'Finalize Settlement?',
+      message: 'Are you sure you want to mark this booking as finally settled?\n\nThis will archive the record to Settlement History.',
+      confirmText: 'Final Settlement',
+      cancelText: 'Cancel',
+      variant: 'primary',
+      onConfirm: async () => {
+        try {
+          setActionLoading(true);
+          setError(null);
+          await markFinalSettlement(settlement.id, settlement.billing?.id);
+          setSelectedSettlement(null);
+          if (activeGarageId) {
+            if (activeGarageId === 'MECHHELP_MASTER') {
+              const data = await getAllSettlements();
+              setSettlements(data.settlements);
+            } else {
+              const data = await getGarageSettlements(activeGarageId);
+              setSettlements(data.settlements);
+              setGarageBalance(data.balance);
+            }
+          }
+          await loadGarages();
+          setConfirmModalState(prev => ({ ...prev, isOpen: false }));
+          addToast({
+            type: 'success',
+            title: '✓ Settlement finalized successfully',
+            message: 'Moved to Settlement History.',
+          });
+        } catch (err: any) {
+          console.error(err);
+          setError(err.message || 'Failed to mark final settlement.');
+          setConfirmModalState(prev => ({ ...prev, isOpen: false }));
+        } finally {
+          setActionLoading(false);
+        }
+      },
+    });
+  };
+
+  const handleDeleteBooking = (settlement: SettlementDetail) => {
+    if (!settlement) return;
+    setConfirmModalState({
+      isOpen: true,
+      title: 'Delete Booking?',
+      message: 'Are you sure you want to delete this booking? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          setActionLoading(true);
+          setError(null);
+          await deleteSettlement(settlement.id, settlement.billing?.id, settlement.leadId);
+          if (activeGarageId) {
+            if (activeGarageId === 'MECHHELP_MASTER') {
+              const data = await getAllSettlements();
+              setSettlements(data.settlements);
+            } else {
+              const data = await getGarageSettlements(activeGarageId);
+              setSettlements(data.settlements);
+              setGarageBalance(data.balance);
+            }
+          }
+          await loadGarages();
+          setConfirmModalState(prev => ({ ...prev, isOpen: false }));
+          addToast({
+            type: 'success',
+            title: '✓ Booking deleted successfully',
+          });
+        } catch (err: any) {
+          console.error(err);
+          setError(err.message || 'Failed to delete booking.');
+          setConfirmModalState(prev => ({ ...prev, isOpen: false }));
+        } finally {
+          setActionLoading(false);
+        }
+      },
+    });
+  };
+
+  const handleSettleAll = () => {
     if (!activeGarageId) return;
-    const confirmSettle = window.confirm(
-      `Mark ALL outstanding entries for "${activeGarageName}" as fully settled?\nThis clears ₹${Math.abs(garageBalance).toLocaleString('en-IN')}.`
-    );
-    if (!confirmSettle) return;
-    try {
-      setActionLoading(true);
-      setError(null);
-      await settleGarage(activeGarageId);
-      const data = await getGarageSettlements(activeGarageId);
-      setSettlements(data.settlements);
-      setGarageBalance(data.balance);
-      loadGarages();
-    } catch (err: any) {
-      console.error(err);
-      setError('Failed to settle garage balance.');
-    } finally {
-      setActionLoading(false);
-    }
+    setConfirmModalState({
+      isOpen: true,
+      title: 'Settle All Entries?',
+      message: `Are you sure you want to mark ALL outstanding entries for "${activeGarageName}" as fully settled?\n\nThis clears ₹${Math.abs(garageBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}.`,
+      confirmText: 'Settle All',
+      cancelText: 'Cancel',
+      variant: 'primary',
+      onConfirm: async () => {
+        try {
+          setActionLoading(true);
+          setError(null);
+          await settleGarage(activeGarageId);
+          const data = await getGarageSettlements(activeGarageId);
+          setSettlements(data.settlements);
+          setGarageBalance(data.balance);
+          await loadGarages();
+          setConfirmModalState(prev => ({ ...prev, isOpen: false }));
+          addToast({
+            type: 'success',
+            title: '✓ Garage balance settled successfully',
+          });
+        } catch (err: any) {
+          console.error(err);
+          setError('Failed to settle garage balance.');
+          setConfirmModalState(prev => ({ ...prev, isOpen: false }));
+        } finally {
+          setActionLoading(false);
+        }
+      },
+    });
   };
 
   const handlePrintAllSettlements = () => {
@@ -658,7 +793,11 @@ export const GarageSettlement: React.FC = () => {
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      alert("Please allow popups to generate the settlement print document.");
+      addToast({
+        type: 'warning',
+        title: 'Popup Blocked',
+        message: 'Please allow popups to generate the settlement print document.',
+      });
       return;
     }
 
@@ -1160,13 +1299,33 @@ export const GarageSettlement: React.FC = () => {
                           </td>
                           <td>
                             {!isPaymentRow && (
-                              <button
-                                type="button"
-                                className="btn btn-secondary btn-sm flex items-center justify-center"
-                                onClick={(e) => { e.stopPropagation(); setSelectedSettlement(s); }}
-                              >
-                                <FileText size={14} />
-                              </button>
+                              <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-start' }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm flex items-center justify-center"
+                                  onClick={(e) => { e.stopPropagation(); setEditingSettlement(s); }}
+                                  title="Edit Booking"
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm flex items-center justify-center text-red"
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteBooking(s); }}
+                                  title="Delete Booking"
+                                  style={{ color: 'var(--danger)' }}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm flex items-center justify-center"
+                                  onClick={(e) => { e.stopPropagation(); setSelectedSettlement(s); }}
+                                  title="View Details"
+                                >
+                                  <FileText size={14} />
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -1303,6 +1462,14 @@ export const GarageSettlement: React.FC = () => {
               >
                 <Printer size={16} /> Print
               </button>
+              <button
+                type="button"
+                className="btn btn-success flex items-center gap-1.5"
+                style={{ backgroundColor: '#16a34a', color: '#fff', border: 'none' }}
+                onClick={() => handleFinalSettlement(selectedSettlement)}
+              >
+                <CheckCircle2 size={16} /> Final Settlement
+              </button>
               <button type="button" className="btn btn-secondary" onClick={() => setSelectedSettlement(null)}>Close</button>
             </div>
           </div>
@@ -1345,6 +1512,46 @@ export const GarageSettlement: React.FC = () => {
           garageName={activeGarageName}
         />
       )}
+
+      {/* ── Edit Booking Modal ───────────────────────────────────────────── */}
+      {editingSettlement && (
+        <EditBookingModal
+          isOpen={!!editingSettlement}
+          onClose={() => setEditingSettlement(null)}
+          onSaved={async () => {
+            if (activeGarageId) {
+              if (activeGarageId === 'MECHHELP_MASTER') {
+                const data = await getAllSettlements();
+                setSettlements(data.settlements);
+              } else {
+                const data = await getGarageSettlements(activeGarageId);
+                setSettlements(data.settlements);
+                setGarageBalance(data.balance);
+              }
+            }
+            await loadGarages();
+          }}
+          settlement={editingSettlement}
+          currentGarageId={activeGarageId || undefined}
+          currentGarageName={activeGarageName || undefined}
+        />
+      )}
+
+      {/* ── Toast Notifications ──────────────────────────────────────────── */}
+      <ToastNotificationContainer toasts={toasts} onDismiss={dismissToast} />
+
+      {/* ── Reusable Confirmation Modal ───────────────────────────────────── */}
+      <ConfirmationModal
+        isOpen={confirmModalState.isOpen}
+        title={confirmModalState.title}
+        message={confirmModalState.message}
+        confirmText={confirmModalState.confirmText}
+        cancelText={confirmModalState.cancelText}
+        variant={confirmModalState.variant}
+        loading={actionLoading}
+        onConfirm={confirmModalState.onConfirm}
+        onCancel={() => setConfirmModalState(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

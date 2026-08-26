@@ -21,6 +21,10 @@ interface LeadContextType {
   getGaragesWithBalances: () => Promise<any[]>;
   getGarageSettlements: (garageId: string) => Promise<any>;
   getAllSettlements: () => Promise<any>;
+  getHistorySettlements: () => Promise<any[]>;
+  markFinalSettlement: (settlementId: string, billingId?: string) => Promise<void>;
+  deleteSettlement: (settlementId: string, billingId?: string, leadId?: string) => Promise<void>;
+  updateSettlementBilling: (settlementId: string, billingId: string, leadId: string | null, data: any) => Promise<void>;
   settleGarage: (garageId: string) => Promise<any>;
   isLoading: boolean;
   isMigrating: boolean;
@@ -196,8 +200,27 @@ export const LeadProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return SettlementService.getAllSettlements();
   };
 
+  const getHistorySettlements = async () => {
+    return SettlementService.getHistorySettlements();
+  };
+
+  const markFinalSettlement = async (settlementId: string, billingId?: string) => {
+    await SettlementService.markFinalSettlement(settlementId, billingId);
+    await fetchAllData();
+  };
+
+  const deleteSettlement = async (settlementId: string, billingId?: string, leadId?: string) => {
+    await SettlementService.deleteSettlement(settlementId, billingId, leadId);
+    await fetchAllData();
+  };
+
+  const updateSettlementBilling = async (settlementId: string, billingId: string, leadId: string | null, data: any) => {
+    await SettlementService.updateSettlementBilling(settlementId, billingId, leadId, data);
+    await fetchAllData();
+  };
+
   return (
-    <LeadContext.Provider value={{ leads, sujalList, addLead, updateLead, deleteLead, addSujalItem, updateSujalItem, deleteSujalItem, finalizeBilling, finalizeDirectBilling, getGarageList, addGarage, removeGarage, recordPayment, getGaragesWithBalances, getGarageSettlements, getAllSettlements, settleGarage, isLoading, isMigrating }}>
+    <LeadContext.Provider value={{ leads, sujalList, addLead, updateLead, deleteLead, addSujalItem, updateSujalItem, deleteSujalItem, finalizeBilling, finalizeDirectBilling, getGarageList, addGarage, removeGarage, recordPayment, getGaragesWithBalances, getGarageSettlements, getAllSettlements, getHistorySettlements, markFinalSettlement, deleteSettlement, updateSettlementBilling, settleGarage, isLoading, isMigrating }}>
       {children}
     </LeadContext.Provider>
   );

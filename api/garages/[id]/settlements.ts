@@ -72,14 +72,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (settlementsError) throw settlementsError;
 
-    // 3. Compute running balance (sum of net_amount where settled is false)
+    // 3. Compute running balance (sum of net_amount across all non-deleted rows for this garage)
     let balance = 0;
     const formattedSettlements = (settlements || []).map((row: any) => {
       const isSettled = !!row.settled;
       const netAmount = Number(row.net_amount) || 0;
-      if (!isSettled) {
-        balance += netAmount;
-      }
+      balance += netAmount;
 
       // Flatten structure slightly for frontend convenience
       return {

@@ -25,19 +25,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (garagesError) throw garagesError;
 
-    // 2. Fetch all unsettled settlements to compute running balances
-    const { data: unsettledSettlements, error: settlementsError } = await supabase
+    // 2. Fetch all settlements to compute running balances across all non-deleted rows
+    const { data: allSettlements, error: settlementsError } = await supabase
       .from('garage_settlements')
-      .select('garage_id, net_amount')
-      .eq('settled', false);
+      .select('garage_id, net_amount');
 
     if (settlementsError) throw settlementsError;
 
     // Map balances per garage_id
     const balancesMap = new Map<string, number>();
-    (unsettledSettlements || []).forEach((row: any) => {
+    (allSettlements || []).forEach((row: any) => {
       const current = balancesMap.get(row.garage_id) || 0;
-      balancesMap.set(row.garage_id, current + Number(row.net_amount));
+      balancesMap.set(row.garage_id, current + Number(row.net_amount || 0));
     });
 
     const garagesWithBalances = (garages || []).map((g: any) => ({
