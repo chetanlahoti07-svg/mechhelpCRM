@@ -5,6 +5,7 @@ import { AddLeadModal } from '../components/AddLeadModal';
 import { CallOutcomeModal } from '../components/CallOutcomeModal';
 import { Plus, Phone, Edit } from 'lucide-react';
 import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
+import { ServiceTypeBadge } from '../components/ServiceTypeBadge';
 import type { Lead } from '../types';
 import './Dashboard.css';
 
@@ -82,6 +83,7 @@ export const Dashboard: React.FC = () => {
                       <span className={`badge ${lead.isVip ? 'badge-vip' : 'badge-gray'}`}>
                         {lead.isVip ? 'VIP' : lead.leadSource}
                       </span>
+                      <ServiceTypeBadge serviceType={lead.serviceType} />
                       {isOverdue && <span className="badge badge-red">Overdue</span>}
                       {isVipTouch && lead.isVip && <span className="badge badge-vip">30d Touchbase</span>}
                     </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useLeadContext } from '../store/LeadContext';
 import { AddLeadModal } from '../components/AddLeadModal';
+import { ServiceTypeBadge } from '../components/ServiceTypeBadge';
 import type { Lead } from '../types';
 
 export const Kanban: React.FC = () => {
@@ -64,7 +65,10 @@ export const Kanban: React.FC = () => {
                       {lead.isVip && <span className="badge badge-vip text-[10px] px-1 py-0">VIP</span>}
                     </div>
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{lead.identifier}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{lead.identifier}</div>
+                    <ServiceTypeBadge serviceType={lead.serviceType} compact />
+                  </div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
                     <span>{lead.carBrand} {lead.carModel}</span>
                     {lead.leadType === 'Booked' && (

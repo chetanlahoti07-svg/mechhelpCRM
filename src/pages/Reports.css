@@ -314,6 +314,53 @@
   margin-top: 0.25rem !important;
 }
 
+/* Conversion Time — Section 8 stats mini-cards */
+.conversion-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.conversion-stat-card {
+  padding: 1rem 1.125rem;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  transition: box-shadow var(--transition-fast);
+}
+
+.conversion-stat-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.conversion-stat-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.conversion-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+.conversion-stat-sub {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-top: 0.15rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 @media (max-width: 768px) {
   .reports-header {
     flex-direction: column;
@@ -331,5 +378,9 @@
   .funnel-stats {
     width: 75px;
     font-size: 0.75rem;
+  }
+
+  .conversion-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }

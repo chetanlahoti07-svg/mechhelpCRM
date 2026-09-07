@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { v4 as uuidv4 } from 'uuid';
-import type { Lead, LeadSource, LeadType, BookingType, Priority, CarBrandModel } from '../types';
+import type { Lead, LeadSource, LeadType, BookingType, Priority, CarBrandModel, ServiceType } from '../types';
 import { CAR_BRANDS, PREMIUM_MODELS } from '../data/seed';
 import { useLeadContext } from '../store/LeadContext';
 import './AddLeadModal.css';
@@ -16,6 +16,12 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
   const { addLead, updateLead, getGarageList } = useLeadContext();
   const isEditing = !!initialData?.id;
 
+  const [createdDate, setCreatedDate] = useState<string>(
+    initialData?.createdDate
+      ? (initialData.createdDate.includes('T') ? initialData.createdDate.split('T')[0] : initialData.createdDate)
+      : new Date().toISOString().split('T')[0]
+  );
+  const [serviceType, setServiceType] = useState<ServiceType[]>(initialData?.serviceType || []);
   const [leadSource, setLeadSource] = useState<LeadSource>(initialData?.leadSource || 'SalesIQ');
   const [identifier, setIdentifier] = useState(initialData?.identifier || '');
   const [customerName, setCustomerName] = useState(initialData?.customerName || '');
@@ -78,6 +84,8 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
     if (isOpen) {
       if (!initialData?.id) {
         // Create mode: Reset all fields to defaults
+        setCreatedDate(new Date().toISOString().split('T')[0]);
+        setServiceType([]);
         setLeadSource('SalesIQ');
         setIdentifier('');
         setCustomerName('');
@@ -99,6 +107,12 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
         setErrors({});
       } else {
         // Edit mode: Populate from initialData
+        setCreatedDate(
+          initialData.createdDate
+            ? (initialData.createdDate.includes('T') ? initialData.createdDate.split('T')[0] : initialData.createdDate)
+            : new Date().toISOString().split('T')[0]
+        );
+        setServiceType(initialData.serviceType || []);
         setLeadSource(initialData.leadSource || 'SalesIQ');
         setIdentifier(initialData.identifier || '');
         setCustomerName(initialData.customerName || '');
@@ -207,9 +221,12 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
             ? initialData.detailsSharedAt
             : new Date().toISOString())
         : null,
+      serviceType,
       numberPlate: numberPlate.trim() || undefined,
       notes,
-      createdDate: isEditing ? initialData!.createdDate! : new Date().toISOString(),
+      createdDate: createdDate
+        ? (createdDate.includes('T') ? createdDate : `${createdDate}T00:00:00.000Z`)
+        : (isEditing ? initialData!.createdDate! : new Date().toISOString()),
     };
 
     if (isEditing) {
@@ -230,6 +247,18 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
         
         <form onSubmit={handleSubmit} className="modal-form-wrapper" noValidate>
           <div className="modal-body">
+            {/* FEATURE 2: Date field at TOP of form */}
+            <div className="form-group mb-4">
+              <label className="form-label">Date</label>
+              <input 
+                id="field-createdDate"
+                type="date" 
+                className="form-input" 
+                value={createdDate} 
+                onChange={e => setCreatedDate(e.target.value)} 
+              />
+            </div>
+
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Customer Name</label>
@@ -345,6 +374,76 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
                   />
                 )}
                 {errors.carModel && <div className="invalid-feedback">{errors.carModel}</div>}
+              </div>
+            </div>
+
+            {/* FEATURE 1: Service Type multi-select right before Number Plate */}
+            <div className="form-group mb-4">
+              <label className="form-label">Service Type</label>
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
+                <label
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.45rem 0.85rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: serviceType.includes('Service') ? '1px solid var(--teal)' : '1px solid var(--border-light)',
+                    backgroundColor: serviceType.includes('Service') ? 'rgba(20, 184, 166, 0.15)' : 'var(--bg-tertiary)',
+                    color: serviceType.includes('Service') ? 'var(--teal)' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem',
+                    fontWeight: 500,
+                    userSelect: 'none',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={serviceType.includes('Service')}
+                    onChange={e => {
+                      if (e.target.checked) {
+                        setServiceType(prev => [...prev, 'Service']);
+                      } else {
+                        setServiceType(prev => prev.filter(s => s !== 'Service'));
+                      }
+                    }}
+                    style={{ accentColor: 'var(--teal)', width: '16px', height: '16px' }}
+                  />
+                  🛠️ Service
+                </label>
+
+                <label
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.45rem 0.85rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: serviceType.includes('Painting/Denting') ? '1px solid var(--vip)' : '1px solid var(--border-light)',
+                    backgroundColor: serviceType.includes('Painting/Denting') ? 'rgba(168, 85, 247, 0.15)' : 'var(--bg-tertiary)',
+                    color: serviceType.includes('Painting/Denting') ? 'var(--vip)' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem',
+                    fontWeight: 500,
+                    userSelect: 'none',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={serviceType.includes('Painting/Denting')}
+                    onChange={e => {
+                      if (e.target.checked) {
+                        setServiceType(prev => [...prev, 'Painting/Denting']);
+                      } else {
+                        setServiceType(prev => prev.filter(s => s !== 'Painting/Denting'));
+                      }
+                    }}
+                    style={{ accentColor: 'var(--vip)', width: '16px', height: '16px' }}
+                  />
+                  🎨 Painting/Denting
+                </label>
               </div>
             </div>
 

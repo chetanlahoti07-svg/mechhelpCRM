@@ -8,6 +8,7 @@ import { TimelineModal } from '../components/TimelineModal';
 import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
 import { BookingStatusDropdown } from '../components/BookingStatusDropdown';
 import { CompletedModal } from '../components/CompletedModal';
+import { ServiceTypeBadge } from '../components/ServiceTypeBadge';
 import type { Lead, LeadType } from '../types';
 
 const parseBookingDate = (dStr?: string): Date => {
@@ -187,9 +188,10 @@ export const Bookings: React.FC = () => {
                 return (
                   <tr key={lead.id}>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                         <strong>{lead.customerName}</strong>
                         {lead.isVip && <span className="badge badge-vip text-[10px] px-1 py-0">VIP</span>}
+                        <ServiceTypeBadge serviceType={lead.serviceType} compact />
                       </div>
                       <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', color: 'var(--text-secondary)' }}>
                         {lead.priority === 'High' ? '🔴 High' : lead.priority === 'Low' ? '🟢 Low' : '🟡 Medium'}

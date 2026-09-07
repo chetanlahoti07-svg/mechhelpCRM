@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLeadContext } from '../store/LeadContext';
 import { AddLeadModal } from '../components/AddLeadModal';
+import { ServiceTypeBadge } from '../components/ServiceTypeBadge';
 import { Edit, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
 import { isBefore, startOfToday } from 'date-fns';
@@ -14,6 +15,7 @@ export const AllLeads: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStage, setFilterStage] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
+  const [filterServiceType, setFilterServiceType] = useState('');
   const [specialFilter, setSpecialFilter] = useState('all');
   
   const [currentPage, setCurrentPage] = useState(1);
@@ -54,6 +56,17 @@ export const AllLeads: React.FC = () => {
       data = data.filter(l => l.priority === filterPriority);
     }
 
+    // Apply service type filter
+    if (filterServiceType) {
+      if (filterServiceType === 'Both') {
+        data = data.filter(l => l.serviceType?.includes('Service') && l.serviceType?.includes('Painting/Denting'));
+      } else if (filterServiceType === 'Service') {
+        data = data.filter(l => l.serviceType?.includes('Service'));
+      } else if (filterServiceType === 'Painting/Denting') {
+        data = data.filter(l => l.serviceType?.includes('Painting/Denting'));
+      }
+    }
+
     // Apply search
     if (searchTerm) {
       const lower = searchTerm.toLowerCase();
@@ -74,7 +87,7 @@ export const AllLeads: React.FC = () => {
     }
 
     return data;
-  }, [leads, specialFilter, filterStage, searchTerm, today]);
+  }, [leads, specialFilter, filterStage, filterPriority, filterServiceType, searchTerm, today]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
@@ -124,6 +137,13 @@ export const AllLeads: React.FC = () => {
             <option value="Low">Low</option>
           </select>
 
+          <select className="form-select" style={{ width: 'auto' }} value={filterServiceType} onChange={e => { setFilterServiceType(e.target.value); setCurrentPage(1); }}>
+            <option value="">All Service Types</option>
+            <option value="Service">Service</option>
+            <option value="Painting/Denting">Painting/Denting</option>
+            <option value="Both">Both (Service + Painting)</option>
+          </select>
+
           {specialFilter !== 'all' && (
             <button className="btn btn-secondary btn-sm" onClick={() => { setSpecialFilter('all'); setCurrentPage(1); }}>
               Clear Special Filter
@@ -152,8 +172,11 @@ export const AllLeads: React.FC = () => {
             {currentData.map(lead => (
               <tr key={lead.id}>
                 <td>
-                  <strong>{lead.customerName || 'Unknown'}</strong>
-                  {lead.isVip && <span className="badge badge-vip" style={{ marginLeft: '0.5rem' }}>VIP</span>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <strong>{lead.customerName || 'Unknown'}</strong>
+                    {lead.isVip && <span className="badge badge-vip">VIP</span>}
+                    <ServiceTypeBadge serviceType={lead.serviceType} compact />
+                  </div>
                   <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', color: 'var(--text-secondary)' }}>
                     {lead.priority === 'High' ? '🔴 High' : lead.priority === 'Low' ? '🟢 Low' : '🟡 Medium'}
                   </div>

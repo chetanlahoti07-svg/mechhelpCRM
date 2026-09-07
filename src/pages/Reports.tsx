@@ -11,6 +11,7 @@ import {
   Filter,
   ChevronDown,
   ChevronUp,
+  Timer,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -539,6 +540,150 @@ export const Reports: React.FC = () => {
     };
   }, [filteredLeads]);
 
+  // ── 8. Conversion Time Distribution Data ────────────────────────────────────
+  const conversionTimeStats = useMemo(() => {
+    // Build a map: leadId -> earliest settlement createdAt (the "Completed at" timestamp)
+    // combinedSettlements already contains all active + archived settlements
+    const settlementCompletionMap = new Map<string, string>();
+    combinedSettlements.forEach(s => {
+      const lid = s.leadId;
+      const ts = s.createdAt;
+      if (!lid || !ts) return;
+      // Keep the earliest completion record if somehow duplicated
+      if (!settlementCompletionMap.has(lid)) {
+        settlementCompletionMap.set(lid, ts);
+      } else {
+        const existing = new Date(settlementCompletionMap.get(lid)!);
+        const incoming = new Date(ts);
+        if (incoming < existing) settlementCompletionMap.set(lid, ts);
+      }
+    });
+
+    // Only completed leads that have a matching settlement (accurate completion timestamp)
+    const completedLeads = filteredLeads.filter(
+      l => l.leadType === 'Completed' && settlementCompletionMap.has(l.id)
+    );
+
+    if (completedLeads.length === 0) {
+      return {
+        count: 0,
+        median: 0,
+        mean: 0,
+        min: 0,
+        max: 0,
+        minLeadName: '',
+        maxLeadName: '',
+        buckets: [
+          { label: '≤1 Week', count: 0, range: '0–7 days' },
+          { label: '1–2 Weeks', count: 0, range: '7–14 days' },
+          { label: '2–4 Weeks', count: 0, range: '14–28 days' },
+          { label: '1–2 Months', count: 0, range: '28–60 days' },
+          { label: '2–3 Months', count: 0, range: '60–90 days' },
+          { label: '3+ Months', count: 0, range: '90+ days' },
+        ],
+        monthlyTrend: [],
+      };
+    }
+
+    // Compute days-to-complete for each lead
+    type LeadDays = { days: number; name: string; createdDate: string };
+    const allDays: LeadDays[] = [];
+
+    completedLeads.forEach(l => {
+      const startStr = l.createdDate;
+      const endStr = settlementCompletionMap.get(l.id)!;
+      if (!startStr || !endStr) return;
+      const start = new Date(startStr);
+      const end = new Date(endStr);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) return;
+      const days = Math.max(0, (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      allDays.push({ days, name: l.customerName, createdDate: startStr });
+    });
+
+    if (allDays.length === 0) {
+      return {
+        count: 0, median: 0, mean: 0, min: 0, max: 0,
+        minLeadName: '', maxLeadName: '',
+        buckets: [
+          { label: '≤1 Week', count: 0, range: '0–7 days' },
+          { label: '1–2 Weeks', count: 0, range: '7–14 days' },
+          { label: '2–4 Weeks', count: 0, range: '14–28 days' },
+          { label: '1–2 Months', count: 0, range: '28–60 days' },
+          { label: '2–3 Months', count: 0, range: '60–90 days' },
+          { label: '3+ Months', count: 0, range: '90+ days' },
+        ],
+        monthlyTrend: [],
+      };
+    }
+
+    // Sort by days ascending for median/min/max
+    const sorted = [...allDays].sort((a, b) => a.days - b.days);
+    const n = sorted.length;
+    const median = n % 2 === 0
+      ? (sorted[n / 2 - 1].days + sorted[n / 2].days) / 2
+      : sorted[Math.floor(n / 2)].days;
+    const mean = allDays.reduce((s, d) => s + d.days, 0) / n;
+    const minEntry = sorted[0];
+    const maxEntry = sorted[n - 1];
+
+    // Bucket boundaries: [0,7), [7,14), [14,28), [28,60), [60,90), [90,+inf)
+    const buckets = [
+      { label: '≤1 Week',    range: '0–7 days',    count: 0 },
+      { label: '1–2 Weeks',  range: '7–14 days',   count: 0 },
+      { label: '2–4 Weeks',  range: '14–28 days',  count: 0 },
+      { label: '1–2 Months', range: '28–60 days',  count: 0 },
+      { label: '2–3 Months', range: '60–90 days',  count: 0 },
+      { label: '3+ Months',  range: '90+ days',    count: 0 },
+    ];
+
+    allDays.forEach(({ days }) => {
+      if (days < 7)        buckets[0].count++;
+      else if (days < 14)  buckets[1].count++;
+      else if (days < 28)  buckets[2].count++;
+      else if (days < 60)  buckets[3].count++;
+      else if (days < 90)  buckets[4].count++;
+      else                 buckets[5].count++;
+    });
+
+    // Monthly trend: group by creation month, compute median days per month
+    const monthlyMap = new Map<string, { month: string; days: number[] }>();
+    allDays.forEach(({ days, createdDate }) => {
+      const d = new Date(createdDate);
+      if (isNaN(d.getTime())) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      if (!monthlyMap.has(key)) monthlyMap.set(key, { month: label, days: [] });
+      monthlyMap.get(key)!.days.push(days);
+    });
+
+    const monthlyTrend = Array.from(monthlyMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([_, val]) => {
+        const s = [...val.days].sort((a, b) => a - b);
+        const nm = s.length;
+        const med = nm % 2 === 0
+          ? (s[nm / 2 - 1] + s[nm / 2]) / 2
+          : s[Math.floor(nm / 2)];
+        return {
+          month: val.month,
+          MedianDays: Math.round(med * 10) / 10,
+          Count: nm,
+        };
+      });
+
+    return {
+      count: n,
+      median: Math.round(median * 10) / 10,
+      mean: Math.round(mean * 10) / 10,
+      min: Math.round(minEntry.days * 10) / 10,
+      max: Math.round(maxEntry.days * 10) / 10,
+      minLeadName: minEntry.name,
+      maxLeadName: maxEntry.name,
+      buckets,
+      monthlyTrend,
+    };
+  }, [filteredLeads, combinedSettlements]);
+
   // Handler for table sorting
   const handleSort = (field: 'revenue' | 'bookings' | 'mechhelpShare' | 'garageShare') => {
     if (sortField === field) {
@@ -675,12 +820,213 @@ export const Reports: React.FC = () => {
             </div>
           </div>
 
-          {/* ── SECTION 1: Lead-to-Booking Conversion ─────────────────────── */}
+          {/* ── SECTION 1: Conversion Time Distribution ──────────────────── */}
+          <div className="reports-section surface-panel">
+            <div className="reports-section-header">
+              <div className="reports-section-title">
+                <Timer size={20} style={{ color: 'var(--teal)' }} />
+                <h2>1. Conversion Time</h2>
+              </div>
+              <span className="reports-section-badge" style={{ color: 'var(--teal)' }}>
+                {conversionTimeStats.count} completed leads · Median: {conversionTimeStats.median} days
+              </span>
+            </div>
+
+            {conversionTimeStats.count === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
+                <Timer size={32} style={{ opacity: 0.3, marginBottom: '0.75rem' }} />
+                <p style={{ fontSize: '0.9rem' }}>No completed leads in the selected date window.</p>
+                <p style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>Try selecting "All Time" or a wider range.</p>
+              </div>
+            ) : (
+              <>
+                {/* ── Supporting stats row ── */}
+                <div className="conversion-stats-grid">
+                  <div className="conversion-stat-card">
+                    <div className="conversion-stat-label">Median Conversion</div>
+                    <div className="conversion-stat-value" style={{ color: 'var(--teal)' }}>
+                      {conversionTimeStats.median} <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>days</span>
+                    </div>
+                    <div className="conversion-stat-sub">More robust than the mean for skewed data</div>
+                  </div>
+
+                  <div className="conversion-stat-card">
+                    <div className="conversion-stat-label">Mean Conversion</div>
+                    <div className="conversion-stat-value" style={{ color: 'var(--info)' }}>
+                      {conversionTimeStats.mean} <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>days</span>
+                    </div>
+                    <div className="conversion-stat-sub">Average across {conversionTimeStats.count} completed leads</div>
+                  </div>
+
+                  <div className="conversion-stat-card">
+                    <div className="conversion-stat-label">Fastest Conversion</div>
+                    <div className="conversion-stat-value" style={{ color: 'var(--success)' }}>
+                      {conversionTimeStats.min} <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>days</span>
+                    </div>
+                    <div className="conversion-stat-sub" title={conversionTimeStats.minLeadName}>
+                      {conversionTimeStats.minLeadName
+                        ? `${conversionTimeStats.minLeadName.split(' ')[0]}…`
+                        : '—'}
+                    </div>
+                  </div>
+
+                  <div className="conversion-stat-card">
+                    <div className="conversion-stat-label">Slowest Conversion</div>
+                    <div className="conversion-stat-value" style={{ color: 'var(--warning)' }}>
+                      {conversionTimeStats.max} <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>days</span>
+                    </div>
+                    <div className="conversion-stat-sub" title={conversionTimeStats.maxLeadName}>
+                      {conversionTimeStats.maxLeadName
+                        ? `${conversionTimeStats.maxLeadName.split(' ')[0]}…`
+                        : '—'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Two-column: histogram + trend ── */}
+                <div className="reports-two-col" style={{ marginTop: '1.5rem' }}>
+                  {/* Primary: Distribution Histogram */}
+                  <div>
+                    <h4 style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                      Distribution — Leads by Conversion Time
+                    </h4>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                      Each bar = number of leads that converted within that time window. Wide spread = two populations; narrow spike = consistent pipeline.
+                    </p>
+                    <div style={{ width: '100%', height: 280 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={conversionTimeStats.buckets} barCategoryGap="18%">
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" vertical={false} />
+                          <XAxis
+                            dataKey="label"
+                            stroke="var(--text-muted)"
+                            fontSize={11}
+                            tick={{ fill: 'var(--text-secondary)' }}
+                          />
+                          <YAxis
+                            stroke="var(--text-muted)"
+                            fontSize={12}
+                            allowDecimals={false}
+                            label={{ value: 'Leads', angle: -90, position: 'insideLeft', fill: 'var(--text-muted)', fontSize: 11 }}
+                          />
+                          <Tooltip
+                            content={({ active, payload, label }) => {
+                              if (active && payload && payload.length) {
+                                const d = payload[0].payload;
+                                return (
+                                  <div className="custom-chart-tooltip">
+                                    <p className="custom-chart-tooltip-label">{label}</p>
+                                    <div className="custom-chart-tooltip-row">
+                                      <span>Range:</span>
+                                      <strong>{d.range}</strong>
+                                    </div>
+                                    <div className="custom-chart-tooltip-row" style={{ color: 'var(--teal)' }}>
+                                      <span>Leads in bucket:</span>
+                                      <strong>{d.count}</strong>
+                                    </div>
+                                    <div className="custom-chart-tooltip-row">
+                                      <span>Share:</span>
+                                      <strong>
+                                        {conversionTimeStats.count > 0
+                                          ? Math.round((d.count / conversionTimeStats.count) * 100)
+                                          : 0}%
+                                      </strong>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="count" name="Leads" radius={[6, 6, 0, 0]}>
+                            {conversionTimeStats.buckets.map((entry, index) => {
+                              const maxCount = Math.max(...conversionTimeStats.buckets.map(b => b.count));
+                              return (
+                                <Cell
+                                  key={`cell-${index}`}
+                                  fill={entry.count === maxCount && entry.count > 0 ? COLORS.teal : `${COLORS.teal}70`}
+                                />
+                              );
+                            })}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Secondary: Median Trend by Month */}
+                  <div>
+                    <h4 style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                      Trend — Median Conversion Time by Month
+                    </h4>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                      Grouped by lead creation month. Falling line = leads are converting faster. Rising = pipeline slowing down.
+                    </p>
+                    {conversionTimeStats.monthlyTrend.length < 2 ? (
+                      <div style={{ textAlign: 'center', padding: '4rem 1rem', color: 'var(--text-muted)', fontSize: '0.825rem' }}>
+                        Trend requires at least 2 months of data. Widen the date range to see this chart.
+                      </div>
+                    ) : (
+                      <div style={{ width: '100%', height: 280 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={conversionTimeStats.monthlyTrend}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
+                            <XAxis dataKey="month" stroke="var(--text-muted)" fontSize={12} />
+                            <YAxis stroke="var(--text-muted)" fontSize={12} unit="d" />
+                            <Tooltip
+                              content={({ active, payload, label }) => {
+                                if (active && payload && payload.length) {
+                                  const d = payload[0].payload;
+                                  return (
+                                    <div className="custom-chart-tooltip">
+                                      <p className="custom-chart-tooltip-label">{label}</p>
+                                      <div className="custom-chart-tooltip-row" style={{ color: COLORS.purple }}>
+                                        <span>Median Days:</span>
+                                        <strong>{d.MedianDays} days</strong>
+                                      </div>
+                                      <div className="custom-chart-tooltip-row">
+                                        <span>Leads completed:</span>
+                                        <strong>{d.Count}</strong>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="MedianDays"
+                              name="Median Days"
+                              stroke={COLORS.purple}
+                              strokeWidth={3}
+                              dot={{ r: 5, fill: COLORS.purple }}
+                              activeDot={{ r: 7 }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Bucket detail footnote ── */}
+                <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-tertiary)', fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+                  <span><strong>Bucket ranges used:</strong></span>
+                  {conversionTimeStats.buckets.map(b => (
+                    <span key={b.label}>{b.label}: {b.range} ({b.count} leads)</span>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* ── SECTION 2: Lead-to-Booking Conversion ─────────────────────── */}
           <div className="reports-section surface-panel">
             <div className="reports-section-header">
               <div className="reports-section-title">
                 <TrendingUp size={20} style={{ color: 'var(--vip)' }} />
-                <h2>1. Lead-to-Booking Conversion</h2>
+                <h2>2. Lead-to-Booking Conversion</h2>
               </div>
               <span className="reports-section-badge">Overall Rate: {leadConversionStats.conversionRate}%</span>
             </div>
@@ -772,7 +1118,7 @@ export const Reports: React.FC = () => {
             <div className="reports-section-header">
               <div className="reports-section-title">
                 <RotateCcw size={20} style={{ color: 'var(--warning)' }} />
-                <h2>2. Booking Reschedule Rate</h2>
+                <h2>3. Booking Reschedule Rate</h2>
               </div>
               <span className="reports-section-badge" style={{ color: 'var(--warning)' }}>
                 Reschedule Rate: {rescheduleStats.rescheduleRate}%
@@ -828,7 +1174,7 @@ export const Reports: React.FC = () => {
             <div className="reports-section-header">
               <div className="reports-section-title">
                 <DollarSign size={20} style={{ color: 'var(--success)' }} />
-                <h2>3. Revenue Trend & Financial Split</h2>
+                <h2>4. Revenue Trend & Financial Split</h2>
               </div>
               <span className="reports-section-badge" style={{ color: 'var(--success)' }}>
                 Total Revenue Billed: ₹{revenueStats.totalCustomerBilled.toLocaleString('en-IN')}
@@ -885,7 +1231,7 @@ export const Reports: React.FC = () => {
             <div className="reports-section-header">
               <div className="reports-section-title">
                 <Building2 size={20} style={{ color: 'var(--info)' }} />
-                <h2>4. Garage-wise Performance</h2>
+                <h2>5. Garage-wise Performance</h2>
               </div>
               <span className="reports-section-badge">{garagePerformanceData.length} Partner Garages</span>
             </div>
@@ -932,7 +1278,7 @@ export const Reports: React.FC = () => {
               <div className="reports-section-header">
                 <div className="reports-section-title">
                   <PieIcon size={20} style={{ color: 'var(--teal)' }} />
-                  <h2>5. Lead Source Breakdown</h2>
+                  <h2>6. Lead Source Breakdown</h2>
                 </div>
               </div>
 
@@ -990,7 +1336,7 @@ export const Reports: React.FC = () => {
               <div className="reports-section-header">
                 <div className="reports-section-title">
                   <Clock size={20} style={{ color: 'var(--info)' }} />
-                  <h2>6. Time-to-Completion</h2>
+                  <h2>7. Time-to-Completion</h2>
                 </div>
                 <span className="reports-section-badge">Avg: {completionTimeStats.avgDays} Days</span>
               </div>
@@ -1034,7 +1380,7 @@ export const Reports: React.FC = () => {
             <div className="reports-section-header">
               <div className="reports-section-title">
                 <Target size={20} style={{ color: 'var(--danger)' }} />
-                <h2>7. Retarget Effectiveness</h2>
+                <h2>8. Retarget Effectiveness</h2>
               </div>
               <span className="reports-section-badge" style={{ color: 'var(--danger)' }}>
                 Retarget Conversion: {retargetStats.conversionRate}%
@@ -1110,6 +1456,8 @@ export const Reports: React.FC = () => {
               </div>
             </div>
           </div>
+
+
         </>
       )}
     </div>

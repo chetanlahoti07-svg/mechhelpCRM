@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useLeadContext } from '../store/LeadContext';
 import { AddLeadModal } from '../components/AddLeadModal';
+import { ServiceTypeBadge } from '../components/ServiceTypeBadge';
 import { Edit, Search, Sun, Moon } from 'lucide-react';
 import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
 import { isBefore, isToday, startOfToday } from 'date-fns';
@@ -88,8 +89,11 @@ export const TodayRemainingLeads: React.FC = () => {
             {sectionLeads.map(lead => (
               <tr key={lead.id}>
                 <td>
-                  <strong>{lead.customerName || 'Unknown'}</strong>
-                  {lead.isVip && <span className="badge badge-vip" style={{ marginLeft: '0.5rem' }}>VIP</span>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <strong>{lead.customerName || 'Unknown'}</strong>
+                    {lead.isVip && <span className="badge badge-vip">VIP</span>}
+                    <ServiceTypeBadge serviceType={lead.serviceType} compact />
+                  </div>
                   <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', color: 'var(--text-secondary)' }}>
                     {lead.priority === 'High' ? '🔴 High' : lead.priority === 'Low' ? '🟢 Low' : '🟡 Medium'}
                   </div>

@@ -30,6 +30,7 @@ const mapDbToLead = (row: any): Lead => ({
   whatsappBroadcast: row.whatsapp_broadcast,
   retargetTimeSlot: row.retarget_time_slot || null,
   detailsSharedAt: row.details_shared_at || null,
+  serviceType: row.service_type || [],
   numberPlate: row.number_plate || '',
   notes: row.notes || '',
   createdDate: row.created_date,
@@ -73,6 +74,7 @@ const mapLeadToDb = (lead: Lead) => ({
   whatsapp_broadcast: lead.whatsappBroadcast,
   retarget_time_slot: lead.retargetTimeSlot || null,
   details_shared_at: lead.detailsSharedAt || null,
+  service_type: lead.serviceType || [],
   number_plate: lead.numberPlate || null,
   notes: lead.notes,
   created_date: lead.createdDate
@@ -113,6 +115,7 @@ export const LeadService = {
       
       const fallbackData = JSON.parse(localStorage.getItem('mechhelp_retarget_fallback') || '{}');
       const detailsSharedFallback = JSON.parse(localStorage.getItem('mechhelp_details_shared_fallback') || '{}');
+      const serviceTypeFallback = JSON.parse(localStorage.getItem('mechhelp_service_type_fallback') || '{}');
       return (data || []).map((row: any) => {
         const lead = mapDbToLead(row);
         // If DB returned null for retargetTimeSlot, check our local fallback overlay
@@ -121,6 +124,9 @@ export const LeadService = {
         }
         if (!lead.detailsSharedAt && detailsSharedFallback[lead.id]) {
           lead.detailsSharedAt = detailsSharedFallback[lead.id];
+        }
+        if ((!lead.serviceType || lead.serviceType.length === 0) && serviceTypeFallback[lead.id]) {
+          lead.serviceType = serviceTypeFallback[lead.id];
         }
         return lead;
       });
@@ -131,9 +137,9 @@ export const LeadService = {
     }
   },
 
-  async addLead(lead: Omit<Lead, 'id' | 'createdDate' | 'bookingHistory' | 'activityHistory'>): Promise<Lead> {
+  async addLead(lead: Omit<Lead, 'id' | 'createdDate' | 'bookingHistory' | 'activityHistory'> & { createdDate?: string }): Promise<Lead> {
     const newLeadId = uuidv4();
-    const createdDate = new Date().toISOString();
+    const createdDate = lead.createdDate || new Date().toISOString();
     
     if (useSupabase) {
       // Attempt to resolve garage_id from the garage_assigned text at creation time.
@@ -174,6 +180,7 @@ export const LeadService = {
         whatsapp_broadcast: lead.whatsappBroadcast,
         retarget_time_slot: lead.retargetTimeSlot || null,
         details_shared_at: detailsSharedAt,
+        service_type: lead.serviceType || [],
         number_plate: lead.numberPlate || null,
         notes: lead.notes,
         created_date: createdDate
@@ -189,9 +196,10 @@ export const LeadService = {
         `)
         .single();
 
-      if (error && (error.code === 'PGRST204' || error.message?.includes('retarget_time_slot') || error.message?.includes('details_shared_at'))) {
+      if (error && (error.code === 'PGRST204' || error.message?.includes('retarget_time_slot') || error.message?.includes('details_shared_at') || error.message?.includes('service_type'))) {
         delete (dbLead as any).retarget_time_slot;
         delete (dbLead as any).details_shared_at;
+        delete (dbLead as any).service_type;
         const res = await supabase
           .from('leads')
           .insert([dbLead])
@@ -217,6 +225,12 @@ export const LeadService = {
             detailsSharedFallback[data.id] = detailsSharedAt;
             localStorage.setItem('mechhelp_details_shared_fallback', JSON.stringify(detailsSharedFallback));
             data.details_shared_at = detailsSharedAt;
+          }
+          if (lead.serviceType && lead.serviceType.length > 0) {
+            const serviceTypeFallback = JSON.parse(localStorage.getItem('mechhelp_service_type_fallback') || '{}');
+            serviceTypeFallback[data.id] = lead.serviceType;
+            localStorage.setItem('mechhelp_service_type_fallback', JSON.stringify(serviceTypeFallback));
+            data.service_type = lead.serviceType;
           }
         }
       }
@@ -268,9 +282,10 @@ export const LeadService = {
         .update(dbLead)
         .eq('id', finalLead.id);
         
-      if (leadError && (leadError.code === 'PGRST204' || leadError.message?.includes('retarget_time_slot') || leadError.message?.includes('details_shared_at'))) {
+      if (leadError && (leadError.code === 'PGRST204' || leadError.message?.includes('retarget_time_slot') || leadError.message?.includes('details_shared_at') || leadError.message?.includes('service_type'))) {
         delete dbLead.retarget_time_slot;
         delete dbLead.details_shared_at;
+        delete dbLead.service_type;
         const res = await supabase
           .from('leads')
           .update(dbLead)
@@ -294,6 +309,11 @@ export const LeadService = {
               delete detailsSharedFallback[finalLead.id];
               localStorage.setItem('mechhelp_details_shared_fallback', JSON.stringify(detailsSharedFallback));
             }
+          }
+          if (finalLead.serviceType) {
+            const serviceTypeFallback = JSON.parse(localStorage.getItem('mechhelp_service_type_fallback') || '{}');
+            serviceTypeFallback[finalLead.id] = finalLead.serviceType;
+            localStorage.setItem('mechhelp_service_type_fallback', JSON.stringify(serviceTypeFallback));
           }
         }
       }

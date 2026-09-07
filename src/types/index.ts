@@ -2,6 +2,7 @@ export type LeadSource = 'SalesIQ' | 'Direct Call' | 'Referral';
 export type LeadType = 'Fresh Lead' | 'Call Not Received' | 'Details Shared' | 'Shared Quotation' | 'Retarget' | 'Booked' | 'Completed' | 'Lost' | 'Redirected' | 'Rescheduled';
 export type BookingType = 'Pickup' | 'Garage Visit';
 export type Priority = 'High' | 'Medium' | 'Low';
+export type ServiceType = 'Service' | 'Painting/Denting';
 
 export interface RescheduleHistoryEntry {
   previousDate: string;
@@ -45,6 +46,7 @@ export interface Lead {
   whatsappBroadcast: boolean;
   retargetTimeSlot?: 'morning' | 'evening' | null;
   detailsSharedAt?: string | null;
+  serviceType?: ServiceType[];
   numberPlate?: string;
   notes: string;
   createdDate: string;

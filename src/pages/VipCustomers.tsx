@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useLeadContext } from '../store/LeadContext';
 import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
+import { ServiceTypeBadge } from '../components/ServiceTypeBadge';
 import { differenceInDays, startOfToday } from 'date-fns';
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -100,7 +101,10 @@ export const VipCustomers: React.FC = () => {
             {currentData.map(lead => (
               <tr key={lead.id}>
                 <td>
-                  <strong>{lead.customerName || 'Unknown'}</strong><br/>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <strong>{lead.customerName || 'Unknown'}</strong>
+                    <ServiceTypeBadge serviceType={lead.serviceType} compact />
+                  </div>
                   <small className="text-muted">{lead.identifier}</small>
                 </td>
                 <td>{lead.carBrand} {lead.carModel}</td>
