@@ -23,9 +23,12 @@ export const TodayRemainingLeads: React.FC = () => {
 
   const today = startOfToday();
 
-  // Filter leads due today
+  // Filter leads due today (including auto-rolled-over un-actioned retarget reminders)
   const allTodayLeads = useMemo(() => {
-    let data = leads.filter(l => isToday(parseDate(l.nextFollowUpDate)));
+    let data = leads.filter(l => {
+      const fDate = parseDate(l.nextFollowUpDate);
+      return isToday(fDate) || (l.leadType === 'Retarget' && isBefore(fDate, today));
+    });
 
     if (filterPriority) {
       data = data.filter(l => l.priority === filterPriority);

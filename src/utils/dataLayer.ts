@@ -137,6 +137,37 @@ export const LeadService = {
     }
   },
 
+  async checkSalesIqTagExists(tag: string, excludeLeadId?: string): Promise<boolean> {
+    const trimmedTag = tag.trim();
+    if (!trimmedTag) return false;
+
+    if (useSupabase) {
+      let query = supabase
+        .from('leads')
+        .select('id', { count: 'exact', head: true })
+        .ilike('identifier', trimmedTag)
+        .eq('lead_source', 'SalesIQ');
+
+      if (excludeLeadId) {
+        query = query.neq('id', excludeLeadId);
+      }
+      const { count, error } = await query;
+      if (error) {
+        console.error('Error checking SalesIQ Tag uniqueness:', error);
+        return false;
+      }
+      return (count || 0) > 0;
+    } else {
+      await delay();
+      const leads = await this.getLeads();
+      return leads.some(l => 
+        (l.leadSource === 'SalesIQ' || !l.leadSource) &&
+        l.identifier.trim().toLowerCase() === trimmedTag.toLowerCase() &&
+        (!excludeLeadId || l.id !== excludeLeadId)
+      );
+    }
+  },
+
   async addLead(lead: Omit<Lead, 'id' | 'createdDate' | 'bookingHistory' | 'activityHistory'> & { createdDate?: string }): Promise<Lead> {
     const newLeadId = uuidv4();
     const createdDate = lead.createdDate || new Date().toISOString();

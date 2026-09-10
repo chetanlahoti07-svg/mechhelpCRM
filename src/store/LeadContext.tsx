@@ -99,7 +99,7 @@ export const LeadProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLeads(prev => [newLead, ...prev]);
     } catch (error) {
       console.error('Error adding lead:', error);
-      alert('Failed to add lead.');
+      throw error;
     }
   };
 
@@ -109,7 +109,7 @@ export const LeadProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLeads(prev => prev.map(l => (l.id === savedLead.id ? savedLead : l)));
     } catch (error) {
       console.error('Error updating lead:', error);
-      alert('Failed to update lead.');
+      throw error;
     }
   };
 

@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { Lead, LeadSource, LeadType, BookingType, Priority, CarBrandModel, ServiceType } from '../types';
 import { CAR_BRANDS, PREMIUM_MODELS } from '../data/seed';
 import { useLeadContext } from '../store/LeadContext';
+import { LeadService } from '../utils/dataLayer';
 import './AddLeadModal.css';
 
 interface AddLeadModalProps {
@@ -136,16 +137,71 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
     }
   }, [isOpen, initialData]);
 
+  // Real-time debounced duplicate validation for SalesIQ Tag
+  useEffect(() => {
+    if (leadSource !== 'SalesIQ' || !identifier.trim() || !isOpen) {
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const isDup = await LeadService.checkSalesIqTagExists(
+        identifier,
+        isEditing ? initialData?.id : undefined
+      );
+      if (isDup) {
+        setErrors(prev => ({
+          ...prev,
+          identifier: "This SalesIQ Tag is already in use — each tag must be unique."
+        }));
+      } else {
+        setErrors(prev => {
+          if (prev.identifier === "This SalesIQ Tag is already in use — each tag must be unique.") {
+            const next = { ...prev };
+            delete next.identifier;
+            return next;
+          }
+          return prev;
+        });
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [identifier, leadSource, isEditing, initialData?.id, isOpen]);
+
+  const handleIdentifierBlur = async () => {
+    if (leadSource === 'SalesIQ' && identifier.trim()) {
+      const isDup = await LeadService.checkSalesIqTagExists(
+        identifier,
+        isEditing ? initialData?.id : undefined
+      );
+      if (isDup) {
+        setErrors(prev => ({
+          ...prev,
+          identifier: "This SalesIQ Tag is already in use — each tag must be unique."
+        }));
+      }
+    }
+  };
+
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
     
     const newErrors: Record<string, string> = {};
 
-    if (leadSource === 'SalesIQ' && !identifier.trim()) {
-      newErrors.identifier = "SalesIQ Tag is required";
+    if (leadSource === 'SalesIQ') {
+      if (!identifier.trim()) {
+        newErrors.identifier = "SalesIQ Tag is required";
+      } else {
+        const isDup = await LeadService.checkSalesIqTagExists(
+          identifier,
+          isEditing ? initialData?.id : undefined
+        );
+        if (isDup) {
+          newErrors.identifier = "This SalesIQ Tag is already in use — each tag must be unique.";
+        }
+      }
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -229,12 +285,43 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
         : (isEditing ? initialData!.createdDate! : new Date().toISOString()),
     };
 
-    if (isEditing) {
-      updateLead(lead);
-    } else {
-      addLead(lead);
+    try {
+      if (isEditing) {
+        await updateLead(lead);
+      } else {
+        await addLead(lead);
+      }
+      onClose();
+    } catch (err: any) {
+      console.error('Error saving lead in AddLeadModal:', err);
+      const errMsg = err?.message || '';
+      const errCode = err?.code || '';
+      if (
+        errCode === '23505' ||
+        errMsg.toLowerCase().includes('unique') ||
+        errMsg.toLowerCase().includes('duplicate') ||
+        errMsg.toLowerCase().includes('already in use') ||
+        errMsg.includes('idx_leads_unique_salesiq_tag')
+      ) {
+        setErrors({ identifier: "This SalesIQ Tag is already in use — each tag must be unique." });
+        const errorElement = document.getElementById('field-identifier');
+        if (errorElement) {
+          const formGroup = errorElement.closest('.form-group') || errorElement;
+          const modalBody = document.querySelector('.modal-body');
+          if (modalBody) {
+            const elementRect = formGroup.getBoundingClientRect();
+            const bodyRect = modalBody.getBoundingClientRect();
+            const targetScrollTop = modalBody.scrollTop + (elementRect.top - bodyRect.top) - 20;
+            modalBody.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+          } else {
+            formGroup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+          errorElement.focus({ preventScroll: true });
+        }
+      } else {
+        alert(errMsg || 'Failed to save lead.');
+      }
     }
-    onClose();
   };
 
   return createPortal(
@@ -303,6 +390,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
                 className={`form-input ${errors.identifier ? 'is-invalid' : ''}`} 
                 maxLength={leadSource === 'SalesIQ' ? 50 : 4}
                 value={identifier} 
+                onBlur={handleIdentifierBlur}
                 onChange={e => {
                   const val = e.target.value;
                   if (leadSource !== 'SalesIQ' && !/^\d{0,4}$/.test(val)) return;

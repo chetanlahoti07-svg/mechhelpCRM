@@ -7,7 +7,7 @@ import { AddLeadModal } from './AddLeadModal';
 import type { Lead } from '../types';
 import { CheckCircle, Calendar, Sun, Moon, List, RotateCcw } from 'lucide-react';
 import './StickyHeader.css';
-import { isToday, isTomorrow } from 'date-fns';
+import { isToday, isTomorrow, isBefore, startOfToday } from 'date-fns';
 
 export const StickyHeader: React.FC = () => {
   const { leads, isLoading } = useLeadContext();
@@ -22,13 +22,19 @@ export const StickyHeader: React.FC = () => {
     return new Date(dStr.includes('T') ? dStr : `${dStr}T00:00:00`);
   };
 
+  const today = startOfToday();
+
   const bookedLeads = leads.filter(l => l.leadType === 'Booked' && l.bookingDateTime);
   const bookingsToday = bookedLeads.filter(l => isToday(parseBookingDate(l.bookingDateTime))).length;
   const bookingsTomorrow = bookedLeads.filter(l => isTomorrow(parseBookingDate(l.bookingDateTime))).length;
   const totalBookings = bookedLeads.length;
 
-  // Reminders logic matching ReminderPage (Retarget leads due today)
-  const todayReminders = leads.filter(l => l.leadType === 'Retarget' && isToday(parseBookingDate(l.nextFollowUpDate)));
+  // Reminders logic matching ReminderPage (Retarget leads due today or rolled over from past)
+  const todayReminders = leads.filter(l => {
+    if (l.leadType !== 'Retarget') return false;
+    const fDate = parseBookingDate(l.nextFollowUpDate);
+    return isToday(fDate) || isBefore(fDate, today);
+  });
   const morningReminders = todayReminders.filter(l => l.retargetTimeSlot === 'morning').length;
   // Legacy leads with no time slot (null/undefined) default to Evening — mirrors ReminderPage logic
   const eveningReminders = todayReminders.filter(l => l.retargetTimeSlot === 'evening' || !l.retargetTimeSlot).length;
