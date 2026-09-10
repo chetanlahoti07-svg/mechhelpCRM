@@ -21,11 +21,43 @@ export const ReminderPage: React.FC<Props> = ({ slot }) => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
+  const [filterStaleness, setFilterStaleness] = useState('');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | undefined>(undefined);
 
   const today = startOfToday();
+
+  // Calculate total counts for each staleness bucket for the current slot
+  const allSlotLeads = useMemo(() => {
+    if (slot !== 'morning' && slot !== 'evening') return [];
+    return leads.filter(l => {
+      if (l.leadType !== 'Retarget') return false;
+      const followUpDate = parseDate(l.nextFollowUpDate);
+      if (!isToday(followUpDate) && !isBefore(followUpDate, today)) return false;
+      if (slot === 'morning') return l.retargetTimeSlot === 'morning';
+      if (slot === 'evening') return l.retargetTimeSlot === 'evening' || !l.retargetTimeSlot;
+      return false;
+    });
+  }, [leads, slot, today]);
+
+  const stalenessCounts = useMemo(() => {
+    let fresh = 0;
+    let count1to7 = 0;
+    let count8to14 = 0;
+    let count15plus = 0;
+
+    allSlotLeads.forEach(l => {
+      const followUpDate = parseDate(l.nextFollowUpDate);
+      const days = differenceInCalendarDays(today, followUpDate);
+      if (days === 0) fresh++;
+      else if (days >= 1 && days <= 7) count1to7++;
+      else if (days >= 8 && days <= 14) count8to14++;
+      else if (days >= 15) count15plus++;
+    });
+
+    return { total: allSlotLeads.length, fresh, count1to7, count8to14, count15plus };
+  }, [allSlotLeads, today]);
 
   const sectionLeads = useMemo(() => {
     let data = leads.filter(l => {
@@ -45,10 +77,18 @@ export const ReminderPage: React.FC<Props> = ({ slot }) => {
       if (l.leadType !== 'Retarget') return false;
       const followUpDate = parseDate(l.nextFollowUpDate);
       if (!isToday(followUpDate) && !isBefore(followUpDate, today)) return false;
-      if (slot === 'morning') return l.retargetTimeSlot === 'morning';
-      // Legacy leads with no time slot (null/undefined) default to Evening
-      if (slot === 'evening') return l.retargetTimeSlot === 'evening' || !l.retargetTimeSlot;
-      return false;
+      if (slot === 'morning' && l.retargetTimeSlot !== 'morning') return false;
+      if (slot === 'evening' && (l.retargetTimeSlot !== 'evening' && !!l.retargetTimeSlot)) return false;
+
+      if (filterStaleness) {
+        const days = differenceInCalendarDays(today, followUpDate);
+        if (filterStaleness === 'fresh' && days !== 0) return false;
+        if (filterStaleness === '1-7' && (days < 1 || days > 7)) return false;
+        if (filterStaleness === '8-14' && (days < 8 || days > 14)) return false;
+        if (filterStaleness === '15+' && days < 15) return false;
+      }
+
+      return true;
     });
 
     if (filterPriority) {
@@ -67,7 +107,7 @@ export const ReminderPage: React.FC<Props> = ({ slot }) => {
     }
 
     return data.sort((a, b) => new Date(b.createdDate || 0).getTime() - new Date(a.createdDate || 0).getTime());
-  }, [leads, filterPriority, searchTerm, slot]);
+  }, [leads, filterPriority, filterStaleness, searchTerm, slot, today]);
 
   const handleEdit = (lead: Lead) => {
     setSelectedLead(lead);
@@ -110,8 +150,8 @@ export const ReminderPage: React.FC<Props> = ({ slot }) => {
       </div>
 
       <div className="filters surface-panel" style={{ padding: '1.5rem', marginBottom: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', gap: '1rem', flex: 1, minWidth: '300px' }}>
-          <div style={{ position: 'relative', flex: 1, maxWidth: '400px' }}>
+        <div style={{ display: 'flex', gap: '1rem', flex: 1, minWidth: '300px', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: '220px', maxWidth: '400px' }}>
             <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
               type="text"
@@ -129,6 +169,21 @@ export const ReminderPage: React.FC<Props> = ({ slot }) => {
             <option value="Medium">Medium</option>
             <option value="Low">Low</option>
           </select>
+
+          {(isMorning || isEvening) && (
+            <select
+              className="form-select"
+              style={{ width: 'auto' }}
+              value={filterStaleness}
+              onChange={e => setFilterStaleness(e.target.value)}
+            >
+              <option value="">All Reminders ({stalenessCounts.total})</option>
+              <option value="fresh">Fresh / Today ({stalenessCounts.fresh})</option>
+              <option value="1-7">Rolled over 1–7 days ({stalenessCounts.count1to7})</option>
+              <option value="8-14">Rolled over 1–2 weeks ({stalenessCounts.count8to14})</option>
+              <option value="15+">Not picking up / 2+ weeks ({stalenessCounts.count15plus})</option>
+            </select>
+          )}
         </div>
 
         <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
@@ -149,51 +204,63 @@ export const ReminderPage: React.FC<Props> = ({ slot }) => {
             </tr>
           </thead>
           <tbody>
-            {sectionLeads.map(lead => (
-              <tr key={lead.id}>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                    <strong>{lead.customerName || 'Unknown'}</strong>
-                    {lead.isVip && <span className="badge badge-vip">VIP</span>}
-                    <ServiceTypeBadge serviceType={lead.serviceType} compact />
-                  </div>
-                  <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', color: 'var(--text-secondary)' }}>
-                    {lead.priority === 'High' ? '🔴 High' : lead.priority === 'Low' ? '🟢 Low' : '🟡 Medium'}
-                  </div>
-                </td>
-                <td>{lead.identifier} <br /><small className="text-muted">({lead.leadSource})</small></td>
-                <td>{lead.carBrand} {lead.carModel}</td>
-                <td>
-                  <span className="badge badge-gray" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                    {slot === 'details-shared'
-                      ? '📋 Details Shared'
-                      : slot === 'shared-quotation'
-                      ? '📄 Shared Quotation'
-                      : lead.retargetTimeSlot === 'morning'
-                      ? '☀️ Morning'
-                      : lead.retargetTimeSlot === 'evening'
-                      ? '🌙 Evening'
-                      : lead.leadType}
-                  </span>
-                </td>
-                <td>
-                  <span className={isBefore(new Date(lead.nextFollowUpDate), today) && !['Booked', 'Completed', 'Lost'].includes(lead.leadType) ? 'text-danger font-bold' : ''}>
-                    {lead.nextFollowUpDate}
-                  </span>
-                </td>
-                <td>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(lead)}>
-                      <Edit size={14} /> Edit
-                    </button>
-                    <DeleteConfirmAction
-                      size="sm"
-                      onConfirm={() => deleteLead(lead.id)}
-                    />
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {sectionLeads.map(lead => {
+              const followUpDate = parseDate(lead.nextFollowUpDate);
+              const daysOverdue = differenceInCalendarDays(today, followUpDate);
+
+              return (
+                <tr key={lead.id}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <strong>{lead.customerName || 'Unknown'}</strong>
+                      {lead.isVip && <span className="badge badge-vip">VIP</span>}
+                      <ServiceTypeBadge serviceType={lead.serviceType} compact />
+                    </div>
+                    <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', color: 'var(--text-secondary)' }}>
+                      {lead.priority === 'High' ? '🔴 High' : lead.priority === 'Low' ? '🟢 Low' : '🟡 Medium'}
+                    </div>
+                  </td>
+                  <td>{lead.identifier} <br /><small className="text-muted">({lead.leadSource})</small></td>
+                  <td>{lead.carBrand} {lead.carModel}</td>
+                  <td>
+                    <span className="badge badge-gray" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                      {slot === 'details-shared'
+                        ? '📋 Details Shared'
+                        : slot === 'shared-quotation'
+                        ? '📄 Shared Quotation'
+                        : lead.retargetTimeSlot === 'morning'
+                        ? '☀️ Morning'
+                        : lead.retargetTimeSlot === 'evening'
+                        ? '🌙 Evening'
+                        : lead.leadType}
+                    </span>
+                  </td>
+                  <td>
+                    <div>
+                      <span className={daysOverdue > 0 && !['Booked', 'Completed', 'Lost'].includes(lead.leadType) ? 'text-danger font-bold' : ''}>
+                        {lead.nextFollowUpDate}
+                      </span>
+                      {daysOverdue > 0 && (
+                        <div style={{ fontSize: '0.7rem', color: 'var(--danger)', marginTop: '0.1rem' }}>
+                          ({daysOverdue}d rolled over)
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(lead)}>
+                        <Edit size={14} /> Edit
+                      </button>
+                      <DeleteConfirmAction
+                        size="sm"
+                        onConfirm={() => deleteLead(lead.id)}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
             {sectionLeads.length === 0 && (
               <tr>
                 <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem' }}>
