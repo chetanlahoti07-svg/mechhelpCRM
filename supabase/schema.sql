@@ -49,6 +49,7 @@ CREATE TABLE leads (
   user_id UUID REFERENCES profiles(id) ON DELETE SET NULL, -- Track who created it
   customer_name TEXT NOT NULL,
   lead_source TEXT NOT NULL,
+  salesperson TEXT DEFAULT 'Choice',
   identifier TEXT NOT NULL,
   car_brand TEXT NOT NULL, -- Keep as text to support custom entries
   car_model TEXT NOT NULL, -- Keep as text to support custom entries

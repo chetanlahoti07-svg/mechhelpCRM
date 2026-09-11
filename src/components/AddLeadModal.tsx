@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { v4 as uuidv4 } from 'uuid';
-import type { Lead, LeadSource, LeadType, BookingType, Priority, CarBrandModel, ServiceType } from '../types';
+import type { Lead, LeadSource, Salesperson, LeadType, BookingType, Priority, CarBrandModel, ServiceType } from '../types';
 import { CAR_BRANDS, PREMIUM_MODELS } from '../data/seed';
 import { useLeadContext } from '../store/LeadContext';
 import { LeadService } from '../utils/dataLayer';
@@ -24,6 +24,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
   );
   const [serviceType, setServiceType] = useState<ServiceType[]>(initialData?.serviceType || []);
   const [leadSource, setLeadSource] = useState<LeadSource>(initialData?.leadSource || 'SalesIQ');
+  const [salesperson, setSalesperson] = useState<Salesperson>(initialData?.salesperson || 'Choice');
   const [identifier, setIdentifier] = useState(initialData?.identifier || '');
   const [customerName, setCustomerName] = useState(initialData?.customerName || '');
   const [carBrand, setCarBrand] = useState(initialData?.carBrand || '');
@@ -88,6 +89,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
         setCreatedDate(new Date().toISOString().split('T')[0]);
         setServiceType([]);
         setLeadSource('SalesIQ');
+        setSalesperson('Choice');
         setIdentifier('');
         setCustomerName('');
         setCarBrand('');
@@ -115,6 +117,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
         );
         setServiceType(initialData.serviceType || []);
         setLeadSource(initialData.leadSource || 'SalesIQ');
+        setSalesperson(initialData.salesperson || 'Choice');
         setIdentifier(initialData.identifier || '');
         setCustomerName(initialData.customerName || '');
         setCarBrand(initialData.carBrand || '');
@@ -258,6 +261,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
       id: isEditing ? initialData!.id! : uuidv4(),
       customerName,
       leadSource,
+      salesperson,
       identifier,
       carBrand: finalCarBrand,
       carModel: finalCarModel,
@@ -346,22 +350,22 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
               />
             </div>
 
+            <div className="form-group">
+              <label className="form-label">Customer Name</label>
+              <input 
+                id="field-customerName"
+                type="text" 
+                className={`form-input ${errors.customerName ? 'is-invalid' : ''}`} 
+                value={customerName} 
+                onChange={e => {
+                  setCustomerName(e.target.value);
+                  if (errors.customerName) setErrors(prev => ({...prev, customerName: ''}));
+                }} 
+              />
+              {errors.customerName && <div className="invalid-feedback">{errors.customerName}</div>}
+            </div>
+
             <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Customer Name</label>
-                <input 
-                  id="field-customerName"
-                  type="text" 
-                  className={`form-input ${errors.customerName ? 'is-invalid' : ''}`} 
-                  value={customerName} 
-                  onChange={e => {
-                    setCustomerName(e.target.value);
-                    if (errors.customerName) setErrors(prev => ({...prev, customerName: ''}));
-                  }} 
-                />
-                {errors.customerName && <div className="invalid-feedback">{errors.customerName}</div>}
-              </div>
-              
               <div className="form-group">
                 <label className="form-label">Lead Source</label>
                 <select 
@@ -376,6 +380,21 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, ini
                   <option value="SalesIQ">SalesIQ</option>
                   <option value="Direct Call">Direct Call</option>
                   <option value="Referral">Referral</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Salesperson</label>
+                <select 
+                  id="field-salesperson"
+                  className="form-select" 
+                  value={salesperson} 
+                  onChange={e => setSalesperson(e.target.value as Salesperson)}
+                >
+                  <option value="Choice">Choice</option>
+                  <option value="Nothing">Nothing</option>
+                  <option value="Tecno">Tecno</option>
+                  <option value="Realme">Realme</option>
                 </select>
               </div>
             </div>

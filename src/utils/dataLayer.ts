@@ -10,55 +10,60 @@ const useSupabase = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env
 const delay = (ms = 300) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Helper to map DB row to Lead interface
-const mapDbToLead = (row: any): Lead => ({
-  id: row.id,
-  customerName: row.customer_name,
-  leadSource: row.lead_source,
-  identifier: row.identifier,
-  carBrand: row.car_brand,
-  carModel: row.car_model,
-  priority: row.priority,
-  leadType: row.lead_type,
-  bookingType: row.booking_type,
-  garageAssigned: row.garage_assigned,
-  garageId: row.garage_id,
-  bookingDateTime: row.booking_date_time,
-  garageNotified: row.garage_notified,
-  nextFollowUpDate: row.next_follow_up_date,
-  lastContactedDate: row.last_contacted_date,
-  isVip: row.is_vip,
-  whatsappBroadcast: row.whatsapp_broadcast,
-  retargetTimeSlot: row.retarget_time_slot || null,
-  detailsSharedAt: row.details_shared_at || null,
-  serviceType: row.service_type || [],
-  numberPlate: row.number_plate || '',
-  notes: row.notes || '',
-  createdDate: row.created_date,
-  bookingHistory: (row.booking_history || []).map((h: any) => ({
-    previousDate: h.previous_date,
-    previousTime: h.previous_time,
-    previousGarage: h.previous_garage,
-    newDate: h.new_date,
-    newTime: h.new_time,
-    newGarage: h.new_garage,
-    reason: h.reason,
-    remarks: h.remarks,
-    rescheduledBy: h.rescheduled_by,
-    rescheduledOn: h.rescheduled_on
-  })),
-  activityHistory: (row.activity_history || []).map((a: any) => ({
-    id: a.id,
-    timestamp: a.timestamp,
-    outcome: a.outcome,
-    notes: a.notes
-  }))
-});
+const mapDbToLead = (row: any): Lead => {
+  const salespersonFallback = JSON.parse(localStorage.getItem('mechhelp_salesperson_fallback') || '{}');
+  return {
+    id: row.id,
+    customerName: row.customer_name,
+    leadSource: row.lead_source,
+    salesperson: row.salesperson || salespersonFallback[row.id] || 'Choice',
+    identifier: row.identifier,
+    carBrand: row.car_brand,
+    carModel: row.car_model,
+    priority: row.priority,
+    leadType: row.lead_type,
+    bookingType: row.booking_type,
+    garageAssigned: row.garage_assigned,
+    garageId: row.garage_id,
+    bookingDateTime: row.booking_date_time,
+    garageNotified: row.garage_notified,
+    nextFollowUpDate: row.next_follow_up_date,
+    lastContactedDate: row.last_contacted_date,
+    isVip: row.is_vip,
+    whatsappBroadcast: row.whatsapp_broadcast,
+    retargetTimeSlot: row.retarget_time_slot || null,
+    detailsSharedAt: row.details_shared_at || null,
+    serviceType: row.service_type || [],
+    numberPlate: row.number_plate || '',
+    notes: row.notes || '',
+    createdDate: row.created_date,
+    bookingHistory: (row.booking_history || []).map((h: any) => ({
+      previousDate: h.previous_date,
+      previousTime: h.previous_time,
+      previousGarage: h.previous_garage,
+      newDate: h.new_date,
+      newTime: h.new_time,
+      newGarage: h.new_garage,
+      reason: h.reason,
+      remarks: h.remarks,
+      rescheduledBy: h.rescheduled_by,
+      rescheduledOn: h.rescheduled_on
+    })),
+    activityHistory: (row.activity_history || []).map((a: any) => ({
+      id: a.id,
+      timestamp: a.timestamp,
+      outcome: a.outcome,
+      notes: a.notes
+    }))
+  };
+};
 
 // Helper to map Lead interface to DB row
 const mapLeadToDb = (lead: Lead) => ({
   id: lead.id,
   customer_name: lead.customerName,
   lead_source: lead.leadSource,
+  salesperson: lead.salesperson || 'Choice',
   identifier: lead.identifier,
   car_brand: lead.carBrand,
   car_model: lead.carModel,
@@ -227,10 +232,11 @@ export const LeadService = {
         `)
         .single();
 
-      if (error && (error.code === 'PGRST204' || error.message?.includes('retarget_time_slot') || error.message?.includes('details_shared_at') || error.message?.includes('service_type'))) {
+      if (error && (error.code === 'PGRST204' || error.message?.includes('retarget_time_slot') || error.message?.includes('details_shared_at') || error.message?.includes('service_type') || error.message?.includes('salesperson'))) {
         delete (dbLead as any).retarget_time_slot;
         delete (dbLead as any).details_shared_at;
         delete (dbLead as any).service_type;
+        delete (dbLead as any).salesperson;
         const res = await supabase
           .from('leads')
           .insert([dbLead])
@@ -262,6 +268,12 @@ export const LeadService = {
             serviceTypeFallback[data.id] = lead.serviceType;
             localStorage.setItem('mechhelp_service_type_fallback', JSON.stringify(serviceTypeFallback));
             data.service_type = lead.serviceType;
+          }
+          if (lead.salesperson) {
+            const salespersonFallback = JSON.parse(localStorage.getItem('mechhelp_salesperson_fallback') || '{}');
+            salespersonFallback[data.id] = lead.salesperson;
+            localStorage.setItem('mechhelp_salesperson_fallback', JSON.stringify(salespersonFallback));
+            data.salesperson = lead.salesperson;
           }
         }
       }
@@ -313,10 +325,11 @@ export const LeadService = {
         .update(dbLead)
         .eq('id', finalLead.id);
         
-      if (leadError && (leadError.code === 'PGRST204' || leadError.message?.includes('retarget_time_slot') || leadError.message?.includes('details_shared_at') || leadError.message?.includes('service_type'))) {
+      if (leadError && (leadError.code === 'PGRST204' || leadError.message?.includes('retarget_time_slot') || leadError.message?.includes('details_shared_at') || leadError.message?.includes('service_type') || leadError.message?.includes('salesperson'))) {
         delete dbLead.retarget_time_slot;
         delete dbLead.details_shared_at;
         delete dbLead.service_type;
+        delete dbLead.salesperson;
         const res = await supabase
           .from('leads')
           .update(dbLead)
@@ -345,6 +358,11 @@ export const LeadService = {
             const serviceTypeFallback = JSON.parse(localStorage.getItem('mechhelp_service_type_fallback') || '{}');
             serviceTypeFallback[finalLead.id] = finalLead.serviceType;
             localStorage.setItem('mechhelp_service_type_fallback', JSON.stringify(serviceTypeFallback));
+          }
+          if (finalLead.salesperson) {
+            const salespersonFallback = JSON.parse(localStorage.getItem('mechhelp_salesperson_fallback') || '{}');
+            salespersonFallback[finalLead.id] = finalLead.salesperson;
+            localStorage.setItem('mechhelp_salesperson_fallback', JSON.stringify(salespersonFallback));
           }
         }
       }

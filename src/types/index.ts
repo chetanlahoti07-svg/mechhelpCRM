@@ -1,4 +1,5 @@
 export type LeadSource = 'SalesIQ' | 'Direct Call' | 'Referral';
+export type Salesperson = 'Choice' | 'Nothing' | 'Tecno' | 'Realme';
 export type LeadType = 'Fresh Lead' | 'Call Not Received' | 'Details Shared' | 'Shared Quotation' | 'Retarget' | 'Booked' | 'Completed' | 'Lost' | 'Redirected' | 'Rescheduled';
 export type BookingType = 'Pickup' | 'Garage Visit';
 export type Priority = 'High' | 'Medium' | 'Low';
@@ -28,6 +29,7 @@ export interface Lead {
   id: string;
   customerName: string;
   leadSource: LeadSource;
+  salesperson?: Salesperson;
   identifier: string; // SalesIQ Tag OR Last 4 Digits
   carBrand: string;
   carModel: string;
