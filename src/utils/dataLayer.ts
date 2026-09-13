@@ -1885,8 +1885,8 @@ export const DailyGarageBoardService = {
   },
 
   /**
-   * Read-only lookup: find a SalesIQ lead by its tag (the identifier column
-   * on the leads table, filtered by lead_source = 'SalesIQ').
+   * Read-only lookup: find a SalesIQ lead by its tag.
+   * Checks both `leads` table (identifier column) and `call_list_items` table (sales_iq_tag column).
    * Returns { customerName, carName } on match, null if not found.
    * No writes to leads or any other table ever occur from this function.
    */
@@ -1895,34 +1895,77 @@ export const DailyGarageBoardService = {
     if (!trimmed) return null;
 
     if (useSupabase) {
-      const { data, error } = await supabase
+      // 1. Check leads table by identifier
+      const { data: leadData, error: leadErr } = await supabase
         .from('leads')
         .select('customer_name, car_brand, car_model')
         .ilike('identifier', trimmed)
-        .eq('lead_source', 'SalesIQ')
         .maybeSingle();
-      if (error) throw error;
-      if (!data) return null;
-      return {
-        customerName: data.customer_name,
-        carName: [data.car_brand, data.car_model].filter(Boolean).join(' ').trim(),
-      };
+
+      if (!leadErr && leadData) {
+        return {
+          customerName: leadData.customer_name,
+          carName: [leadData.car_brand, leadData.car_model].filter(Boolean).join(' ').trim(),
+        };
+      }
+
+      // 2. Fallback: check call_list_items table by sales_iq_tag
+      const { data: callData, error: callErr } = await supabase
+        .from('call_list_items')
+        .select('linked_lead_id')
+        .ilike('sales_iq_tag', trimmed)
+        .maybeSingle();
+
+      if (!callErr && callData?.linked_lead_id) {
+        const { data: linkedLead } = await supabase
+          .from('leads')
+          .select('customer_name, car_brand, car_model')
+          .eq('id', callData.linked_lead_id)
+          .maybeSingle();
+
+        if (linkedLead) {
+          return {
+            customerName: linkedLead.customer_name,
+            carName: [linkedLead.car_brand, linkedLead.car_model].filter(Boolean).join(' ').trim(),
+          };
+        }
+      }
+
+      return null;
     } else {
       await delay();
       const raw = localStorage.getItem(LEADS_KEY);
       const leads: any[] = raw ? JSON.parse(raw) : [];
       const match = leads.find(
-        l =>
-          (l.leadSource === 'SalesIQ' || l.lead_source === 'SalesIQ') &&
-          (l.identifier || '').trim().toLowerCase() === trimmed.toLowerCase()
+        l => (l.identifier || '').trim().toLowerCase() === trimmed.toLowerCase()
       );
-      if (!match) return null;
-      const brand = match.carBrand || match.car_brand || '';
-      const model = match.carModel || match.car_model || '';
-      return {
-        customerName: match.customerName || match.customer_name || '',
-        carName: [brand, model].filter(Boolean).join(' ').trim(),
-      };
+      if (match) {
+        const brand = match.carBrand || match.car_brand || '';
+        const model = match.carModel || match.car_model || '';
+        return {
+          customerName: match.customerName || match.customer_name || '',
+          carName: [brand, model].filter(Boolean).join(' ').trim(),
+        };
+      }
+
+      const callListRaw = localStorage.getItem('mechhelp_call_list_items');
+      const callItems: any[] = callListRaw ? JSON.parse(callListRaw) : [];
+      const callMatch = callItems.find(
+        c => (c.salesIqTag || c.sales_iq_tag || '').trim().toLowerCase() === trimmed.toLowerCase()
+      );
+      if (callMatch?.linkedLeadId) {
+        const linked = leads.find(l => l.id === callMatch.linkedLeadId);
+        if (linked) {
+          const brand = linked.carBrand || linked.car_brand || '';
+          const model = linked.carModel || linked.car_model || '';
+          return {
+            customerName: linked.customerName || linked.customer_name || '',
+            carName: [brand, model].filter(Boolean).join(' ').trim(),
+          };
+        }
+      }
+
+      return null;
     }
   },
 };
