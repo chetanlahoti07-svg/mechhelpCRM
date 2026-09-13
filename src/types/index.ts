@@ -125,3 +125,17 @@ export interface GarageWithBalance {
   balance: number;
 }
 
+// Daily Garage Board
+export type DailyGarageEntryStatus = 'pending' | 'arrived' | 'converted';
+
+export interface DailyGarageEntry {
+  id: string;
+  garageId: string;
+  customerName: string;
+  carName: string;
+  notes: string;
+  status: DailyGarageEntryStatus;
+  createdDate: string; // ISO date string YYYY-MM-DD
+  createdAt: string;
+}
+

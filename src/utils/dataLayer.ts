@@ -1743,3 +1743,186 @@ export const SettlementService = {
     }
   },
 };
+
+// ─── Daily Garage Board ───────────────────────────────────────────────────────
+
+import type { DailyGarageEntry, DailyGarageEntryStatus } from '../types';
+
+const DGB_STORAGE_KEY = 'mechhelp_daily_garage_board';
+
+const mapDbToDgbEntry = (row: any): DailyGarageEntry => ({
+  id: row.id,
+  garageId: row.garage_id,
+  customerName: row.customer_name,
+  carName: row.car_name,
+  notes: row.notes ?? '',
+  status: (row.status as DailyGarageEntryStatus) ?? 'pending',
+  createdDate: row.created_date,
+  createdAt: row.created_at,
+});
+
+export const DailyGarageBoardService = {
+  /**
+   * Fetch all entries for a specific date (YYYY-MM-DD).
+   * Returns entries for ALL garages for that date.
+   */
+  async getEntries(date: string): Promise<DailyGarageEntry[]> {
+    if (useSupabase) {
+      const { data, error } = await supabase
+        .from('daily_garage_board_entries')
+        .select('*')
+        .eq('created_date', date)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return (data || []).map(mapDbToDgbEntry);
+    } else {
+      await delay();
+      const raw = localStorage.getItem(DGB_STORAGE_KEY);
+      const all: DailyGarageEntry[] = raw ? JSON.parse(raw) : [];
+      return all.filter(e => e.createdDate === date);
+    }
+  },
+
+  /**
+   * Add a new entry to the board.
+   */
+  async addEntry(data: {
+    garageId: string;
+    customerName: string;
+    carName: string;
+    notes?: string;
+    createdDate: string;
+  }): Promise<DailyGarageEntry> {
+    if (useSupabase) {
+      const { data: row, error } = await supabase
+        .from('daily_garage_board_entries')
+        .insert({
+          garage_id: data.garageId,
+          customer_name: data.customerName.trim(),
+          car_name: data.carName.trim(),
+          notes: data.notes?.trim() ?? '',
+          status: 'pending',
+          created_date: data.createdDate,
+        })
+        .select('*')
+        .single();
+      if (error) throw error;
+      return mapDbToDgbEntry(row);
+    } else {
+      await delay();
+      const raw = localStorage.getItem(DGB_STORAGE_KEY);
+      const all: DailyGarageEntry[] = raw ? JSON.parse(raw) : [];
+      const newEntry: DailyGarageEntry = {
+        id: uuidv4(),
+        garageId: data.garageId,
+        customerName: data.customerName.trim(),
+        carName: data.carName.trim(),
+        notes: data.notes?.trim() ?? '',
+        status: 'pending',
+        createdDate: data.createdDate,
+        createdAt: new Date().toISOString(),
+      };
+      all.push(newEntry);
+      localStorage.setItem(DGB_STORAGE_KEY, JSON.stringify(all));
+      return newEntry;
+    }
+  },
+
+  /**
+   * Partially update an existing entry (notes, status, customer name, car name).
+   */
+  async updateEntry(
+    id: string,
+    patch: Partial<Pick<DailyGarageEntry, 'notes' | 'status' | 'customerName' | 'carName'>>
+  ): Promise<DailyGarageEntry> {
+    if (useSupabase) {
+      const dbPatch: any = {};
+      if (patch.notes !== undefined) dbPatch.notes = patch.notes;
+      if (patch.status !== undefined) dbPatch.status = patch.status;
+      if (patch.customerName !== undefined) dbPatch.customer_name = patch.customerName.trim();
+      if (patch.carName !== undefined) dbPatch.car_name = patch.carName.trim();
+
+      const { data: row, error } = await supabase
+        .from('daily_garage_board_entries')
+        .update(dbPatch)
+        .eq('id', id)
+        .select('*')
+        .single();
+      if (error) throw error;
+      return mapDbToDgbEntry(row);
+    } else {
+      await delay();
+      const raw = localStorage.getItem(DGB_STORAGE_KEY);
+      const all: DailyGarageEntry[] = raw ? JSON.parse(raw) : [];
+      const idx = all.findIndex(e => e.id === id);
+      if (idx === -1) throw new Error('Entry not found');
+      if (patch.notes !== undefined) all[idx].notes = patch.notes;
+      if (patch.status !== undefined) all[idx].status = patch.status;
+      if (patch.customerName !== undefined) all[idx].customerName = patch.customerName.trim();
+      if (patch.carName !== undefined) all[idx].carName = patch.carName.trim();
+      localStorage.setItem(DGB_STORAGE_KEY, JSON.stringify(all));
+      return all[idx];
+    }
+  },
+
+  /**
+   * Delete an entry by id.
+   */
+  async deleteEntry(id: string): Promise<void> {
+    if (useSupabase) {
+      const { error } = await supabase
+        .from('daily_garage_board_entries')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    } else {
+      await delay();
+      const raw = localStorage.getItem(DGB_STORAGE_KEY);
+      const all: DailyGarageEntry[] = raw ? JSON.parse(raw) : [];
+      const filtered = all.filter(e => e.id !== id);
+      localStorage.setItem(DGB_STORAGE_KEY, JSON.stringify(filtered));
+    }
+  },
+
+  /**
+   * Read-only lookup: find a SalesIQ lead by its tag (the identifier column
+   * on the leads table, filtered by lead_source = 'SalesIQ').
+   * Returns { customerName, carName } on match, null if not found.
+   * No writes to leads or any other table ever occur from this function.
+   */
+  async lookupByTag(tag: string): Promise<{ customerName: string; carName: string } | null> {
+    const trimmed = tag.trim();
+    if (!trimmed) return null;
+
+    if (useSupabase) {
+      const { data, error } = await supabase
+        .from('leads')
+        .select('customer_name, car_brand, car_model')
+        .ilike('identifier', trimmed)
+        .eq('lead_source', 'SalesIQ')
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      return {
+        customerName: data.customer_name,
+        carName: [data.car_brand, data.car_model].filter(Boolean).join(' ').trim(),
+      };
+    } else {
+      await delay();
+      const raw = localStorage.getItem(LEADS_KEY);
+      const leads: any[] = raw ? JSON.parse(raw) : [];
+      const match = leads.find(
+        l =>
+          (l.leadSource === 'SalesIQ' || l.lead_source === 'SalesIQ') &&
+          (l.identifier || '').trim().toLowerCase() === trimmed.toLowerCase()
+      );
+      if (!match) return null;
+      const brand = match.carBrand || match.car_brand || '';
+      const model = match.carModel || match.car_model || '';
+      return {
+        customerName: match.customerName || match.customer_name || '',
+        carName: [brand, model].filter(Boolean).join(' ').trim(),
+      };
+    }
+  },
+};

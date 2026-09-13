@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useLeadContext } from '../store/LeadContext';
 import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
 import { ServiceTypeBadge } from '../components/ServiceTypeBadge';
+import { LeadNoteButton } from '../components/LeadNoteButton';
 import { differenceInDays, startOfToday } from 'date-fns';
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -91,12 +92,13 @@ export const VipCustomers: React.FC = () => {
               <th>Last Contacted</th>
               <th>Days Since Contact</th>
               <th>Stage</th>
+              <th>Note</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {currentData.length === 0 && (
-              <tr><td colSpan={6} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No VIP customers match your search.</td></tr>
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No VIP customers match your search.</td></tr>
             )}
             {currentData.map(lead => (
               <tr key={lead.id}>
@@ -115,6 +117,7 @@ export const VipCustomers: React.FC = () => {
                   </span>
                 </td>
                 <td><span className="badge badge-gray">{lead.leadType}</span></td>
+                <td><LeadNoteButton lead={lead} /></td>
                 <td>
                   <DeleteConfirmAction
                     size="sm"

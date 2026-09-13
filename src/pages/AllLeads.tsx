@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useLeadContext } from '../store/LeadContext';
 import { AddLeadModal } from '../components/AddLeadModal';
 import { ServiceTypeBadge } from '../components/ServiceTypeBadge';
+import { LeadNoteButton } from '../components/LeadNoteButton';
 import { Edit, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
 import { isBefore, startOfToday } from 'date-fns';
@@ -164,6 +165,7 @@ export const AllLeads: React.FC = () => {
               <th>Identifier (Source)</th>
               <th>Car</th>
               <th>Stage</th>
+              <th>Note</th>
               <th>Next Follow-Up</th>
               <th>Actions</th>
             </tr>
@@ -184,6 +186,7 @@ export const AllLeads: React.FC = () => {
                 <td>{lead.identifier} <br/><small className="text-muted">({lead.leadSource})</small></td>
                 <td>{lead.carBrand} {lead.carModel}</td>
                 <td><span className="badge badge-gray">{lead.leadType}</span></td>
+                <td><LeadNoteButton lead={lead} /></td>
                 <td>
                   <span className={isBefore(new Date(lead.nextFollowUpDate), today) && !['Booked', 'Completed', 'Lost'].includes(lead.leadType) ? 'text-danger font-bold' : ''}>
                     {lead.nextFollowUpDate}
@@ -203,7 +206,7 @@ export const AllLeads: React.FC = () => {
               </tr>
             ))}
             {currentData.length === 0 && (
-              <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem' }}>No leads match your criteria.</td></tr>
+              <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem' }}>No leads match your criteria.</td></tr>
             )}
           </tbody>
         </table>

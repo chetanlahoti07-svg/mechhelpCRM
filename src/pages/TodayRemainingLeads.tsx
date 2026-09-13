@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useLeadContext } from '../store/LeadContext';
 import { AddLeadModal } from '../components/AddLeadModal';
 import { ServiceTypeBadge } from '../components/ServiceTypeBadge';
+import { LeadNoteButton } from '../components/LeadNoteButton';
 import { Edit, Search, Sun, Moon } from 'lucide-react';
 import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
 import { isBefore, isToday, startOfToday } from 'date-fns';
@@ -84,6 +85,7 @@ export const TodayRemainingLeads: React.FC = () => {
               <th>Identifier (Source)</th>
               <th>Car</th>
               <th>Stage / Slot</th>
+              <th>Note</th>
               <th>Next Follow-Up</th>
               <th>Actions</th>
             </tr>
@@ -108,6 +110,7 @@ export const TodayRemainingLeads: React.FC = () => {
                     {lead.retargetTimeSlot === 'morning' ? '☀️ Morning' : lead.retargetTimeSlot === 'evening' ? '🌙 Evening' : lead.leadType}
                   </span>
                 </td>
+                <td><LeadNoteButton lead={lead} /></td>
                 <td>
                   <span className={isBefore(new Date(lead.nextFollowUpDate), today) && !['Booked', 'Completed', 'Lost'].includes(lead.leadType) ? 'text-danger font-bold' : ''}>
                     {lead.nextFollowUpDate}
@@ -127,7 +130,7 @@ export const TodayRemainingLeads: React.FC = () => {
               </tr>
             ))}
             {sectionLeads.length === 0 && (
-              <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No leads in this section for today.</td></tr>
+              <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No leads in this section for today.</td></tr>
             )}
           </tbody>
         </table>

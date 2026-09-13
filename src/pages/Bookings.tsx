@@ -9,6 +9,7 @@ import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
 import { BookingStatusDropdown } from '../components/BookingStatusDropdown';
 import { CompletedModal } from '../components/CompletedModal';
 import { ServiceTypeBadge } from '../components/ServiceTypeBadge';
+import { LeadNoteButton } from '../components/LeadNoteButton';
 import type { Lead, LeadType } from '../types';
 
 const parseBookingDate = (dStr?: string): Date => {
@@ -174,12 +175,13 @@ export const Bookings: React.FC = () => {
               <th>Current Booking</th>
               <th>History</th>
               <th>Status</th>
+              <th>Note</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {currentData.length === 0 ? (
-              <tr><td colSpan={6} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No bookings match your criteria.</td></tr>
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No bookings match your criteria.</td></tr>
             ) : (
               currentData.map(lead => {
                 const rescheduleCount = lead.bookingHistory?.length || 0;
@@ -240,6 +242,7 @@ export const Bookings: React.FC = () => {
                         </div>
                       )}
                     </td>
+                    <td><LeadNoteButton lead={lead} /></td>
                     <td>
                       <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-2">

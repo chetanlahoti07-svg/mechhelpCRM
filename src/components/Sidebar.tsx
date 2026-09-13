@@ -14,7 +14,8 @@ import {
   BarChart3,
   CreditCard,
   Wrench,
-  History
+  History,
+  ClipboardList
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -54,6 +55,7 @@ const navSections: NavSection[] = [
       { path: '/bookings', label: 'Bookings', icon: CalendarDays },
       { path: '/bookings/calendar', label: 'Booking Calendar', icon: Calendar },
       { path: '/vip', label: 'VIP Customers', icon: Star },
+      { path: '/daily-garage-board', label: 'Daily Garage Board', icon: ClipboardList },
     ]
   },
   {

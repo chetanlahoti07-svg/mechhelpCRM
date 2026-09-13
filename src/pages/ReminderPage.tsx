@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useLeadContext } from '../store/LeadContext';
 import { AddLeadModal } from '../components/AddLeadModal';
 import { ServiceTypeBadge } from '../components/ServiceTypeBadge';
+import { LeadNoteButton } from '../components/LeadNoteButton';
 import { Edit, Search, Sun, Moon, PhoneForwarded, FileText } from 'lucide-react';
 import { DeleteConfirmAction } from '../components/DeleteConfirmAction';
 import { isBefore, isToday, startOfToday, differenceInCalendarDays } from 'date-fns';
@@ -199,6 +200,7 @@ export const ReminderPage: React.FC<Props> = ({ slot }) => {
               <th>Identifier (Source)</th>
               <th>Car</th>
               <th>Stage / Slot</th>
+              <th>Note</th>
               <th>Next Follow-Up</th>
               <th>Actions</th>
             </tr>
@@ -235,6 +237,7 @@ export const ReminderPage: React.FC<Props> = ({ slot }) => {
                         : lead.leadType}
                     </span>
                   </td>
+                  <td><LeadNoteButton lead={lead} /></td>
                   <td>
                     <div>
                       <span className={daysOverdue > 0 && !['Booked', 'Completed', 'Lost'].includes(lead.leadType) ? 'text-danger font-bold' : ''}>
@@ -263,7 +266,7 @@ export const ReminderPage: React.FC<Props> = ({ slot }) => {
             })}
             {sectionLeads.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem' }}>
+                <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem' }}>
                   {slot === 'details-shared'
                     ? 'No leads in Details Shared stage for 3+ days.'
                     : slot === 'shared-quotation'

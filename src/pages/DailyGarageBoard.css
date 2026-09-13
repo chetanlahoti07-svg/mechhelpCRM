@@ -1,0 +1,665 @@
+/* ═══════════════════════════════════════════════
+   Daily Garage Board — Styles
+   ═══════════════════════════════════════════════ */
+
+/* ─── Page shell ──────────────────────────────── */
+.dgb-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.dgb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1.5rem 2.5rem 1rem;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-primary);
+  flex-shrink: 0;
+}
+
+.dgb-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.dgb-header-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dgb-header-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.dgb-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.dgb-date-input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 0.45rem 0.75rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.dgb-date-input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-focus);
+}
+
+.dgb-today-btn {
+  padding: 0.45rem 0.875rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.dgb-today-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
+.dgb-date-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+/* ─── Board body ──────────────────────────────── */
+.dgb-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem 2.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* ─── Garage row ──────────────────────────────── */
+.dgb-garage-row {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color var(--transition-fast);
+}
+
+.dgb-garage-row:hover {
+  border-color: var(--text-muted);
+}
+
+.dgb-garage-row-header {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-tertiary);
+}
+
+.dgb-garage-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.dgb-garage-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.dgb-garage-count {
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-full);
+  padding: 0.15rem 0.5rem;
+}
+
+/* ─── Cards strip ─────────────────────────────── */
+.dgb-cards-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  min-height: 60px;
+  align-items: flex-start;
+}
+
+.dgb-empty-row {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 0.5rem 0;
+  align-self: center;
+}
+
+/* ─── Add button ──────────────────────────────── */
+.dgb-add-btn {
+  width: 160px;
+  min-width: 160px;
+  height: 120px;
+  border: 2px dashed var(--border-light);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-family: inherit;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.dgb-add-btn:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+/* ─── Car entry card ──────────────────────────── */
+.dgb-entry-card {
+  width: 180px;
+  min-width: 180px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border-light);
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: border-color var(--transition-fast), background var(--transition-normal), box-shadow var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+}
+
+/* Status colour states */
+.dgb-entry-card.status-pending {
+  border-color: var(--border-light);
+  background: var(--bg-primary);
+}
+
+.dgb-entry-card.status-arrived {
+  border-color: var(--success);
+  background: var(--success-bg);
+}
+
+.dgb-entry-card.status-converted {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.dgb-entry-card-body {
+  padding: 0.625rem 0.75rem 0.5rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dgb-entry-customer {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.dgb-entry-car {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.dgb-entry-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-full);
+  width: fit-content;
+  margin-top: 0.1rem;
+}
+
+.dgb-entry-status-badge.badge-pending {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.dgb-entry-status-badge.badge-arrived {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.dgb-entry-status-badge.badge-converted {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+/* Notes field inside card */
+.dgb-entry-notes {
+  width: 100%;
+  resize: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: 0.72rem;
+  font-family: inherit;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  padding: 0.25rem 0.3rem;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+  min-height: 44px;
+  margin-top: 0.25rem;
+}
+
+.dgb-entry-notes:hover {
+  border-color: var(--border-light);
+  background: var(--bg-secondary);
+}
+
+.dgb-entry-notes:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-focus);
+}
+
+.dgb-entry-notes::placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Card action bar */
+.dgb-entry-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.375rem 0.5rem;
+  border-top: 1px solid var(--border-light);
+  background: rgba(0,0,0,0.02);
+}
+
+.dgb-action-btn {
+  flex: 1;
+  height: 26px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.65rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  transition: all var(--transition-fast);
+  padding: 0 0.3rem;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.dgb-action-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.dgb-action-btn.arrived-btn.is-active {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.dgb-action-btn.convert-btn.is-active {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.dgb-action-btn.delete-btn {
+  flex: 0 0 26px;
+  color: var(--text-muted);
+}
+
+.dgb-action-btn.delete-btn:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+/* ─── Modal overlay (add entry) ───────────────── */
+.dgb-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  animation: dgb-fade-in 120ms ease;
+}
+
+@keyframes dgb-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.dgb-modal {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 420px;
+  animation: dgb-slide-up 180ms cubic-bezier(0.34, 1.3, 0.64, 1);
+  overflow: hidden;
+}
+
+@keyframes dgb-slide-up {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.dgb-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem 0.875rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.dgb-modal-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.dgb-modal-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  font-size: 1rem;
+}
+
+.dgb-modal-close:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.dgb-modal-body {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Mode chooser (SalesIQ Tag / Custom) */
+.dgb-mode-chooser {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.625rem;
+}
+
+.dgb-mode-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 1rem 0.75rem;
+  border: 1.5px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all var(--transition-fast);
+  text-align: center;
+}
+
+.dgb-mode-btn:hover {
+  border-color: var(--border-focus);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.dgb-mode-btn-icon {
+  font-size: 1.25rem;
+}
+
+/* Modal form */
+.dgb-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.dgb-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.dgb-form-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dgb-form-input {
+  width: 100%;
+  padding: 0.6rem 0.875rem;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-family: inherit;
+  transition: all var(--transition-fast);
+}
+
+.dgb-form-input:hover { border-color: var(--text-muted); }
+.dgb-form-input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-focus);
+  background: var(--bg-primary);
+}
+.dgb-form-input::placeholder { color: var(--text-muted); }
+
+/* Tag lookup status messages */
+.dgb-tag-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.dgb-tag-status.found {
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid var(--success);
+}
+
+.dgb-tag-status.not-found {
+  background: var(--warning-bg);
+  color: var(--warning);
+  border: 1px solid var(--warning);
+}
+
+.dgb-tag-status.error {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+/* Modal footer */
+.dgb-modal-footer {
+  display: flex;
+  gap: 0.625rem;
+  padding: 0.875rem 1.25rem;
+  border-top: 1px solid var(--border-light);
+}
+
+.dgb-btn-primary {
+  flex: 1;
+  padding: 0.625rem 1rem;
+  border-radius: var(--radius-md);
+  border: none;
+  background: var(--accent-primary);
+  color: var(--accent-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.dgb-btn-primary:hover { background: var(--accent-hover); }
+.dgb-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dgb-btn-secondary {
+  padding: 0.625rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.dgb-btn-secondary:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* ─── Loading / skeleton ──────────────────────── */
+.dgb-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 1.5rem 2.5rem;
+}
+
+.dgb-skeleton-row {
+  height: 100px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 0%,
+    var(--bg-tertiary) 50%,
+    var(--bg-secondary) 100%
+  );
+  background-size: 200% 100%;
+  animation: dgb-shimmer 1.5s infinite;
+}
+
+@keyframes dgb-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─── Empty state ─────────────────────────────── */
+.dgb-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 4rem 2rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.dgb-empty-state svg {
+  opacity: 0.3;
+}
+
+.dgb-empty-state h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.dgb-empty-state p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  max-width: 260px;
+}
