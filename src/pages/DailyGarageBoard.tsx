@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Building2,
-  Car,
   Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
   Clock,
+  MoreVertical,
   Plus,
   RefreshCw,
   Search,
@@ -45,128 +45,133 @@ function formatDate(iso: string): string {
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
 
-// Car Entry Card ──────────────────────────────────────────────────────────────
+// Inline Small Car Card with Three-Dot Popover Menu ──────────────────────────
 
 interface EntryCardProps {
   entry: DailyGarageEntry;
   onStatusChange: (id: string, status: DailyGarageEntryStatus) => void;
-  onNotesChange: (id: string, notes: string) => void;
   onDelete: (id: string) => void;
 }
 
-const EntryCard: React.FC<EntryCardProps> = ({ entry, onStatusChange, onNotesChange, onDelete }) => {
-  const [localNotes, setLocalNotes] = useState(entry.notes);
-  const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+const EntryCard: React.FC<EntryCardProps> = ({ entry, onStatusChange, onDelete }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
 
+  // Close menu when clicking outside
   useEffect(() => {
-    setLocalNotes(entry.notes);
-  }, [entry.notes]);
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
 
-  const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
-    setLocalNotes(val);
-    if (saveTimeout.current) clearTimeout(saveTimeout.current);
-    saveTimeout.current = setTimeout(() => {
-      onNotesChange(entry.id, val);
-    }, 600);
-  };
-
-  const handleArrivedClick = () => {
-    // Toggle: if already arrived → revert to pending; else → arrived
-    const next: DailyGarageEntryStatus = entry.status === 'arrived' ? 'pending' : 'arrived';
-    onStatusChange(entry.id, next);
-  };
-
-  const handleDoneClick = () => {
-    // Toggle: if already done → revert to pending; else → done
-    const next: DailyGarageEntryStatus = entry.status === 'done' ? 'pending' : 'done';
-    onStatusChange(entry.id, next);
+  const handleStatusSelect = (status: DailyGarageEntryStatus) => {
+    onStatusChange(entry.id, status);
+    setMenuOpen(false);
   };
 
   const handleDelete = () => {
+    setMenuOpen(false);
     if (window.confirm(`Remove "${entry.customerName} — ${entry.carName}" from the board?`)) {
       onDelete(entry.id);
     }
   };
 
   return (
-    <div className={`dgb-entry-card status-${entry.status}`}>
-      <div className="dgb-entry-card-body">
-        <div className="dgb-entry-card-top">
-          <div className="dgb-entry-customer">{entry.customerName}</div>
-          <span className="dgb-source-tag">{entry.source === 'salesiq' ? 'SalesIQ' : 'Custom'}</span>
-        </div>
+    <div className={`dgb-inline-card status-${entry.status}`} ref={popoverRef}>
+      {/* Top row: Customer Name + Three-Dot Trigger */}
+      <div className="dgb-card-top-row">
+        <span className="dgb-card-customer-name" title={entry.customerName}>
+          {entry.customerName}
+        </span>
+        <button
+          id={`dgb-menu-trigger-${entry.id}`}
+          className="dgb-card-menu-trigger"
+          onClick={() => setMenuOpen(prev => !prev)}
+          title="Actions menu"
+          aria-label={`Options for ${entry.customerName}`}
+        >
+          <MoreVertical size={14} />
+        </button>
+      </div>
 
-        <div className="dgb-entry-car">{entry.carName}</div>
+      {/* Car Brand/Model */}
+      <div className="dgb-card-car-name" title={entry.carName}>
+        {entry.carName}
+      </div>
 
+      {/* Details Row: Number Plate & Status Pill */}
+      <div className="dgb-card-details-row">
         {entry.numberPlate ? (
-          <span className="dgb-number-plate-pill" title="Number Plate">
-            <Car size={10} />
+          <span className="dgb-card-plate-badge" title="Number Plate">
             {entry.numberPlate}
           </span>
         ) : (
-          <span className="dgb-number-plate-none">No plate</span>
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+            No plate
+          </span>
         )}
 
-        {/* Status Badge */}
+        {/* Status Pill */}
         {entry.status === 'arrived' && (
-          <span className="dgb-entry-status-badge badge-arrived">
-            <Check size={10} strokeWidth={3} /> Arrived
+          <span className="dgb-card-status-pill pill-arrived">
+            <Check size={9} strokeWidth={3} /> Arrived
           </span>
         )}
         {entry.status === 'done' && (
-          <span className="dgb-entry-status-badge badge-done">
-            <CheckCircle2 size={10} strokeWidth={2.5} /> Serviced / Done
+          <span className="dgb-card-status-pill pill-done">
+            <CheckCircle2 size={9} strokeWidth={2.5} /> Done
           </span>
         )}
         {entry.status === 'pending' && (
-          <span className="dgb-entry-status-badge badge-pending">
-            <Clock size={10} /> Pending
+          <span className="dgb-card-status-pill pill-pending">
+            <Clock size={9} /> Pending
           </span>
         )}
-
-        <textarea
-          className="dgb-entry-notes"
-          value={localNotes}
-          onChange={handleNotesChange}
-          placeholder="Add notes…"
-          rows={2}
-          aria-label={`Notes for ${entry.customerName}`}
-        />
       </div>
 
-      {/* Action Controls */}
-      <div className="dgb-entry-actions">
-        <button
-          id={`dgb-arrived-${entry.id}`}
-          className={`dgb-action-btn arrived-btn${entry.status === 'arrived' ? ' is-active' : ''}`}
-          onClick={handleArrivedClick}
-          title={entry.status === 'arrived' ? 'Unmark arrived' : 'Mark as Arrived'}
-        >
-          <Check size={12} strokeWidth={2.5} />
-          Arrived
-        </button>
+      {/* Three-Dot Popover Menu */}
+      {menuOpen && (
+        <div className="dgb-card-menu-popover" role="menu">
+          <button
+            id={`dgb-opt-arrived-${entry.id}`}
+            className="dgb-menu-item item-arrived"
+            onClick={() => handleStatusSelect('arrived')}
+          >
+            <Check size={14} strokeWidth={2.5} /> Mark Arrived
+          </button>
 
-        <button
-          id={`dgb-done-${entry.id}`}
-          className={`dgb-action-btn done-btn${entry.status === 'done' ? ' is-active' : ''}`}
-          onClick={handleDoneClick}
-          title={entry.status === 'done' ? 'Unmark serviced/done' : 'Mark as Serviced/Done'}
-        >
-          <CheckCircle2 size={12} strokeWidth={2.5} />
-          Done
-        </button>
+          <button
+            id={`dgb-opt-done-${entry.id}`}
+            className="dgb-menu-item item-done"
+            onClick={() => handleStatusSelect('done')}
+          >
+            <CheckCircle2 size={14} strokeWidth={2.5} /> Mark Serviced/Done
+          </button>
 
-        <button
-          id={`dgb-delete-${entry.id}`}
-          className="dgb-action-btn delete-btn"
-          onClick={handleDelete}
-          title="Remove entry"
-          aria-label={`Delete entry for ${entry.customerName}`}
-        >
-          <Trash2 size={12} strokeWidth={2} />
-        </button>
-      </div>
+          <button
+            id={`dgb-opt-pending-${entry.id}`}
+            className="dgb-menu-item item-pending"
+            onClick={() => handleStatusSelect('pending')}
+          >
+            <Clock size={14} /> Reset to Pending
+          </button>
+
+          <div className="dgb-menu-divider" />
+
+          <button
+            id={`dgb-opt-delete-${entry.id}`}
+            className="dgb-menu-item item-delete"
+            onClick={handleDelete}
+          >
+            <Trash2 size={14} /> Delete Entry
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -481,7 +486,7 @@ const AddEntryModal: React.FC<AddEntryModalProps> = ({
   );
 };
 
-// Garage Row Section ─────────────────────────────────────────────────────────
+// Garage Row Component (Inline Layout) ──────────────────────────────────────
 
 interface GarageRowProps {
   garageId: string;
@@ -489,7 +494,6 @@ interface GarageRowProps {
   entries: DailyGarageEntry[];
   date: string;
   onStatusChange: (id: string, status: DailyGarageEntryStatus) => void;
-  onNotesChange: (id: string, notes: string) => void;
   onDelete: (id: string) => void;
   onEntryAdded: (entry: DailyGarageEntry) => void;
 }
@@ -500,75 +504,61 @@ const GarageRow: React.FC<GarageRowProps> = ({
   entries,
   date,
   onStatusChange,
-  onNotesChange,
   onDelete,
   onEntryAdded,
 }) => {
   const [showModal, setShowModal] = useState(false);
-  const count = entries.length;
+
+  // Filter entries robustly by garageId or garageName (case-insensitive)
+  const matchingEntries = entries.filter(e =>
+    e.garageId === garageId ||
+    e.garageId === garageName ||
+    (e.garageId && e.garageId.toLowerCase() === garageId.toLowerCase()) ||
+    (e.garageId && e.garageId.toLowerCase() === garageName.toLowerCase())
+  );
+
+  const count = matchingEntries.length;
 
   return (
     <>
       <div className="dgb-garage-row">
-        {/* Header bar */}
-        <div className="dgb-garage-row-header">
-          <div className="dgb-garage-header-left">
-            <span className="dgb-garage-icon"><Building2 size={16} strokeWidth={2} /></span>
-            <h3 className="dgb-garage-name">{garageName}</h3>
-          </div>
-
-          <div className="dgb-garage-header-right">
-            <button
-              id={`dgb-create-${garageId}`}
-              className="dgb-create-btn"
-              onClick={() => setShowModal(true)}
-              title={`Add car to ${garageName}`}
-            >
-              <Plus size={14} strokeWidth={2.5} />
-              Add Car
-            </button>
-            <span id={`dgb-count-${garageId}`} className="dgb-garage-count">
-              {count} {count === 1 ? 'car' : 'cars'}
-            </span>
-          </div>
+        {/* Left: Garage Icon & Name */}
+        <div className="dgb-garage-row-left">
+          <span className="dgb-garage-icon"><Building2 size={16} strokeWidth={2} /></span>
+          <h3 className="dgb-garage-name">{garageName}</h3>
         </div>
 
-        {/* Expanded Content Strip */}
-        <div className="dgb-cards-strip">
-          {entries.length === 0 ? (
-            <div className="dgb-empty-row">
-              <span>No cars assigned for this garage on this date.</span>
-              <button
-                className="dgb-empty-add-btn"
-                onClick={() => setShowModal(true)}
-              >
-                + Add Car
-              </button>
-            </div>
+        {/* Middle: Inline Flex Wrap Container for Small Car Cards */}
+        <div className="dgb-garage-row-cars">
+          {matchingEntries.length === 0 ? (
+            <span className="dgb-no-cars-inline">No cars assigned for today</span>
           ) : (
-            entries.map(entry => (
+            matchingEntries.map(entry => (
               <EntryCard
                 key={entry.id}
                 entry={entry}
                 onStatusChange={onStatusChange}
-                onNotesChange={onNotesChange}
                 onDelete={onDelete}
               />
             ))
           )}
+        </div>
 
-          {/* Additional dashed Add Button card at end of list */}
-          {entries.length > 0 && (
-            <button
-              id={`dgb-add-card-${garageId}`}
-              className="dgb-add-btn"
-              onClick={() => setShowModal(true)}
-              title={`Add car to ${garageName}`}
-            >
-              <Plus size={20} strokeWidth={2} />
-              <span>Add Car</span>
-            </button>
-          )}
+        {/* Right: Add Car Button & Live Counter */}
+        <div className="dgb-garage-row-right">
+          <button
+            id={`dgb-create-${garageId}`}
+            className="dgb-create-btn"
+            onClick={() => setShowModal(true)}
+            title={`Add car to ${garageName}`}
+          >
+            <Plus size={14} strokeWidth={2.5} />
+            Add Car
+          </button>
+
+          <span id={`dgb-count-${garageId}`} className="dgb-garage-count">
+            {count} {count === 1 ? 'car' : 'cars'}
+          </span>
         </div>
       </div>
 
@@ -637,15 +627,6 @@ export const DailyGarageBoard: React.FC = () => {
       alert(`Failed to update status: ${err?.message}`);
       // Revert on error
       loadEntries(selectedDate);
-    }
-  };
-
-  const handleNotesChange = async (id: string, notes: string) => {
-    setEntries(prev => prev.map(e => e.id === id ? { ...e, notes } : e));
-    try {
-      await DailyGarageBoardService.updateEntry(id, { notes });
-    } catch (err: any) {
-      console.error('Failed to save notes:', err);
     }
   };
 
@@ -771,10 +752,9 @@ export const DailyGarageBoard: React.FC = () => {
               key={garage.id}
               garageId={garage.id}
               garageName={garage.name}
-              entries={entries.filter(e => e.garageId === garage.id)}
+              entries={entries}
               date={selectedDate}
               onStatusChange={handleStatusChange}
-              onNotesChange={handleNotesChange}
               onDelete={handleDelete}
               onEntryAdded={handleEntryAdded}
             />
