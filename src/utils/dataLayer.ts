@@ -1746,7 +1746,7 @@ export const SettlementService = {
 
 // ─── Daily Garage Board ───────────────────────────────────────────────────────
 
-import type { DailyGarageEntry, DailyGarageEntryStatus } from '../types';
+import type { DailyGarageEntry, DailyGarageEntryStatus, DailyGarageEntrySource } from '../types';
 
 const DGB_STORAGE_KEY = 'mechhelp_daily_garage_board';
 
@@ -1755,8 +1755,11 @@ const mapDbToDgbEntry = (row: any): DailyGarageEntry => ({
   garageId: row.garage_id,
   customerName: row.customer_name,
   carName: row.car_name,
+  numberPlate: row.number_plate || undefined,
   notes: row.notes ?? '',
   status: (row.status as DailyGarageEntryStatus) ?? 'pending',
+  source: (row.source as DailyGarageEntrySource) ?? 'custom',
+  leadId: row.lead_id || undefined,
   createdDate: row.created_date,
   createdAt: row.created_at,
 });
@@ -1790,7 +1793,10 @@ export const DailyGarageBoardService = {
     garageId: string;
     customerName: string;
     carName: string;
+    numberPlate?: string;
     notes?: string;
+    source?: DailyGarageEntrySource;
+    leadId?: string;
     createdDate: string;
   }): Promise<DailyGarageEntry> {
     if (useSupabase) {
@@ -1800,8 +1806,11 @@ export const DailyGarageBoardService = {
           garage_id: data.garageId,
           customer_name: data.customerName.trim(),
           car_name: data.carName.trim(),
+          number_plate: data.numberPlate?.trim() || null,
           notes: data.notes?.trim() ?? '',
           status: 'pending',
+          source: data.source || 'custom',
+          lead_id: data.leadId || null,
           created_date: data.createdDate,
         })
         .select('*')
@@ -1817,8 +1826,11 @@ export const DailyGarageBoardService = {
         garageId: data.garageId,
         customerName: data.customerName.trim(),
         carName: data.carName.trim(),
+        numberPlate: data.numberPlate?.trim() || undefined,
         notes: data.notes?.trim() ?? '',
         status: 'pending',
+        source: data.source || 'custom',
+        leadId: data.leadId || undefined,
         createdDate: data.createdDate,
         createdAt: new Date().toISOString(),
       };
@@ -1829,11 +1841,11 @@ export const DailyGarageBoardService = {
   },
 
   /**
-   * Partially update an existing entry (notes, status, customer name, car name).
+   * Partially update an existing entry (notes, status, customer name, car name, number plate).
    */
   async updateEntry(
     id: string,
-    patch: Partial<Pick<DailyGarageEntry, 'notes' | 'status' | 'customerName' | 'carName'>>
+    patch: Partial<Pick<DailyGarageEntry, 'notes' | 'status' | 'customerName' | 'carName' | 'numberPlate'>>
   ): Promise<DailyGarageEntry> {
     if (useSupabase) {
       const dbPatch: any = {};
@@ -1841,6 +1853,7 @@ export const DailyGarageBoardService = {
       if (patch.status !== undefined) dbPatch.status = patch.status;
       if (patch.customerName !== undefined) dbPatch.customer_name = patch.customerName.trim();
       if (patch.carName !== undefined) dbPatch.car_name = patch.carName.trim();
+      if (patch.numberPlate !== undefined) dbPatch.number_plate = patch.numberPlate.trim() || null;
 
       const { data: row, error } = await supabase
         .from('daily_garage_board_entries')
@@ -1860,6 +1873,7 @@ export const DailyGarageBoardService = {
       if (patch.status !== undefined) all[idx].status = patch.status;
       if (patch.customerName !== undefined) all[idx].customerName = patch.customerName.trim();
       if (patch.carName !== undefined) all[idx].carName = patch.carName.trim();
+      if (patch.numberPlate !== undefined) all[idx].numberPlate = patch.numberPlate.trim() || undefined;
       localStorage.setItem(DGB_STORAGE_KEY, JSON.stringify(all));
       return all[idx];
     }
@@ -1887,10 +1901,15 @@ export const DailyGarageBoardService = {
   /**
    * Read-only lookup: find a SalesIQ lead by its tag.
    * Checks both `leads` table (identifier column) and `call_list_items` table (sales_iq_tag column).
-   * Returns { customerName, carName } on match, null if not found.
+   * Returns { customerName, carName, numberPlate, leadId } on match, null if not found.
    * No writes to leads or any other table ever occur from this function.
    */
-  async lookupByTag(tag: string): Promise<{ customerName: string; carName: string } | null> {
+  async lookupByTag(tag: string): Promise<{
+    customerName: string;
+    carName: string;
+    numberPlate?: string;
+    leadId?: string;
+  } | null> {
     const trimmed = tag.trim();
     if (!trimmed) return null;
 
@@ -1898,7 +1917,7 @@ export const DailyGarageBoardService = {
       // 1. Check leads table by identifier
       const { data: leadData, error: leadErr } = await supabase
         .from('leads')
-        .select('customer_name, car_brand, car_model')
+        .select('id, customer_name, car_brand, car_model, number_plate')
         .ilike('identifier', trimmed)
         .maybeSingle();
 
@@ -1906,6 +1925,8 @@ export const DailyGarageBoardService = {
         return {
           customerName: leadData.customer_name,
           carName: [leadData.car_brand, leadData.car_model].filter(Boolean).join(' ').trim(),
+          numberPlate: leadData.number_plate || undefined,
+          leadId: leadData.id,
         };
       }
 
@@ -1919,7 +1940,7 @@ export const DailyGarageBoardService = {
       if (!callErr && callData?.linked_lead_id) {
         const { data: linkedLead } = await supabase
           .from('leads')
-          .select('customer_name, car_brand, car_model')
+          .select('id, customer_name, car_brand, car_model, number_plate')
           .eq('id', callData.linked_lead_id)
           .maybeSingle();
 
@@ -1927,6 +1948,8 @@ export const DailyGarageBoardService = {
           return {
             customerName: linkedLead.customer_name,
             carName: [linkedLead.car_brand, linkedLead.car_model].filter(Boolean).join(' ').trim(),
+            numberPlate: linkedLead.number_plate || undefined,
+            leadId: linkedLead.id,
           };
         }
       }
@@ -1945,6 +1968,8 @@ export const DailyGarageBoardService = {
         return {
           customerName: match.customerName || match.customer_name || '',
           carName: [brand, model].filter(Boolean).join(' ').trim(),
+          numberPlate: match.numberPlate || match.number_plate || undefined,
+          leadId: match.id,
         };
       }
 
@@ -1961,6 +1986,8 @@ export const DailyGarageBoardService = {
           return {
             customerName: linked.customerName || linked.customer_name || '',
             carName: [brand, model].filter(Boolean).join(' ').trim(),
+            numberPlate: linked.numberPlate || linked.number_plate || undefined,
+            leadId: linked.id,
           };
         }
       }
@@ -1969,3 +1996,4 @@ export const DailyGarageBoardService = {
     }
   },
 };
+

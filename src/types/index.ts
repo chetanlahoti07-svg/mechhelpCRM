@@ -126,16 +126,21 @@ export interface GarageWithBalance {
 }
 
 // Daily Garage Board
-export type DailyGarageEntryStatus = 'pending' | 'arrived' | 'converted';
+export type DailyGarageEntryStatus = 'pending' | 'arrived' | 'done';
+export type DailyGarageEntrySource = 'salesiq' | 'custom';
 
 export interface DailyGarageEntry {
   id: string;
   garageId: string;
   customerName: string;
   carName: string;
+  numberPlate?: string;
   notes: string;
   status: DailyGarageEntryStatus;
+  source: DailyGarageEntrySource;
+  leadId?: string;
   createdDate: string; // ISO date string YYYY-MM-DD
   createdAt: string;
 }
+
 
